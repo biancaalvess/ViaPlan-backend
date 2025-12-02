@@ -272,7 +272,7 @@ public/
 # ============================================================================
 
 # Docker
-.dockerignore
+# .dockerignore - necessário para build do Docker
 docker-compose.override.yml
 
 # ============================================================================
