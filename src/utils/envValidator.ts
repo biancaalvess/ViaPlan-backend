@@ -68,14 +68,14 @@ export function validateEnvironment(): ValidatedEnv {
 
   if (error) {
     console.error('❌ Erro na validação das variáveis de ambiente:', {
-      details: error.details.map(detail => ({
+      details: error.details.map((detail: Joi.ValidationErrorItem) => ({
         field: detail.path.join('.'),
         message: detail.message
       }))
     });
     
     console.error('❌ Variáveis de ambiente inválidas:');
-    error.details.forEach(detail => {
+    error.details.forEach((detail: Joi.ValidationErrorItem) => {
       console.error(`   - ${detail.path.join('.')}: ${detail.message}`);
     });
     

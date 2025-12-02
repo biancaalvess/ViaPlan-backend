@@ -158,7 +158,7 @@ export const validateRequest = (schema: Joi.ObjectSchema) => {
     });
 
     if (error) {
-      const errorDetails = error.details.map(detail => ({
+      const errorDetails = error.details.map((detail: Joi.ValidationErrorItem) => ({
         field: detail.path.join('.'),
         message: detail.message,
         value: detail.context?.value
@@ -189,7 +189,7 @@ export const validateQuery = (schema: Joi.ObjectSchema) => {
     });
 
     if (error) {
-      const errorDetails = error.details.map(detail => ({
+      const errorDetails = error.details.map((detail: Joi.ValidationErrorItem) => ({
         field: detail.path.join('.'),
         message: detail.message,
         value: detail.context?.value
@@ -220,7 +220,7 @@ export const validateParams = (schema: Joi.ObjectSchema) => {
     });
 
     if (error) {
-      const errorDetails = error.details.map(detail => ({
+      const errorDetails = error.details.map((detail: Joi.ValidationErrorItem) => ({
         field: detail.path.join('.'),
         message: detail.message,
         value: detail.context?.value

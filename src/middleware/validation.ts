@@ -197,7 +197,7 @@ export const validateRequest = (schema: Joi.ObjectSchema | { body?: Joi.ObjectSc
         stripUnknown: true
       });
       if (error) {
-        errors.push(...error.details.map(detail => detail.message));
+        errors.push(...error.details.map((detail: Joi.ValidationErrorItem) => detail.message));
       } else {
         req.body = value;
       }
@@ -209,7 +209,7 @@ export const validateRequest = (schema: Joi.ObjectSchema | { body?: Joi.ObjectSc
           stripUnknown: true
         });
         if (error) {
-          errors.push(...error.details.map(detail => `Body: ${detail.message}`));
+          errors.push(...error.details.map((detail: Joi.ValidationErrorItem) => `Body: ${detail.message}`));
         } else {
           req.body = value;
         }
@@ -221,7 +221,7 @@ export const validateRequest = (schema: Joi.ObjectSchema | { body?: Joi.ObjectSc
           stripUnknown: true
         });
         if (error) {
-          errors.push(...error.details.map(detail => `Query: ${detail.message}`));
+          errors.push(...error.details.map((detail: Joi.ValidationErrorItem) => `Query: ${detail.message}`));
         } else {
           req.query = value;
         }
@@ -233,7 +233,7 @@ export const validateRequest = (schema: Joi.ObjectSchema | { body?: Joi.ObjectSc
           stripUnknown: true
         });
         if (error) {
-          errors.push(...error.details.map(detail => `Params: ${detail.message}`));
+          errors.push(...error.details.map((detail: Joi.ValidationErrorItem) => `Params: ${detail.message}`));
         } else {
           req.params = value;
         }
@@ -264,7 +264,7 @@ export const validateQuery = (schema: Joi.ObjectSchema) => {
     });
 
     if (error) {
-      const errorMessages = error.details.map(detail => detail.message);
+      const errorMessages = error.details.map((detail: Joi.ValidationErrorItem) => detail.message);
       res.status(400).json({
         success: false,
         message: 'Parâmetros de consulta inválidos',
@@ -288,7 +288,7 @@ export const validateParams = (schema: Joi.ObjectSchema) => {
     });
 
     if (error) {
-      const errorMessages = error.details.map(detail => detail.message);
+      const errorMessages = error.details.map((detail: Joi.ValidationErrorItem) => detail.message);
       res.status(400).json({
         success: false,
         message: 'Parâmetros de rota inválidos',

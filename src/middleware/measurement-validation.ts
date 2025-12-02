@@ -47,7 +47,7 @@ export const measurementSchemas = {
   area: Joi.object({
     type: Joi.string().valid('area').required(),
     points: Joi.array().min(3).items(pointSchema).required()
-      .custom((value, helpers) => {
+      .custom((value: any, helpers: Joi.CustomHelpers) => {
         // Validar que está fechado (último = primeiro)
         const first = value[0];
         const last = value[value.length - 1];
