@@ -63,6 +63,11 @@ jspm_packages/
 .env.test
 .env.production
 .env.staging
+env.local
+env.production
+env.development
+env.test
+env.staging
 
 # Backup de arquivos de ambiente
 .env.backup

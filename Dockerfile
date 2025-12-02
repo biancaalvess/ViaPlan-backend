@@ -32,7 +32,7 @@ COPY package*.json ./
 COPY tsconfig.json ./
 
 # Instalar apenas dependências de produção
-RUN npm ci --omit=dev && \
+RUN npm install --production && \
     npm cache clean --force
 
 # Copiar código compilado do estágio builder
