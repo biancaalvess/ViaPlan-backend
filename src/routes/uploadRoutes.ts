@@ -259,9 +259,11 @@ router.delete('/plants/:id', async (req: Request, res: Response): Promise<void> 
 // UPLOAD DE TAKEOFF
 // ============================================================================
 
-router.post('/takeoff/:projectId', upload.single('file'), (req: Request, res: Response): void => {
+router.post('/takeoff/:projectId', upload.single('file'), async (req: Request, res: Response): Promise<void> => {
   try {
     const { projectId } = req.params;
+    const userId = (req as any).user?.id;
+    
     console.log('📊 Upload takeoff para projeto:', projectId);
     
     if (!req.file) {
@@ -270,24 +272,86 @@ router.post('/takeoff/:projectId', upload.single('file'), (req: Request, res: Re
         error: 'Arquivo é obrigatório',
         message: 'Por favor, selecione um arquivo para upload'
       });
+      return;
     }
-    
-    // TODO: Implementar lógica de takeoff
-    if (!req.file) {
-      res.status(400).json({
+
+    if (!userId) {
+      res.status(401).json({
         success: false,
-        error: 'Arquivo é obrigatório'
+        error: 'Usuário não autenticado',
+        message: 'É necessário estar autenticado para fazer upload'
       });
       return;
     }
-    
+
+    // Importar serviços necessários
+    const { TakeoffUnifiedService } = await import('../services/takeoff-unified-service');
+    const takeoffService = new TakeoffUnifiedService();
+
+    // Construir URL do arquivo
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    const fileUrl = `${baseUrl}/uploads/takeoff/${req.file.filename}`;
+    const relativePath = `/uploads/takeoff/${req.file.filename}`;
+
+    // Extrair escala do body ou usar padrão
+    const scale = req.body.scale ? parseFloat(req.body.scale) : 1.0;
+
+    // Criar takeoff automaticamente associado ao arquivo
+    const takeoffOperation = {
+      data: {
+        project_id: projectId,
+        name: `Takeoff - ${req.file.originalname}`,
+        description: `Takeoff criado automaticamente a partir do upload do arquivo ${req.file.originalname}`,
+        type: 'custom' as const,
+        priority: 'medium' as const,
+        metadata: {
+          isDrawing: true,
+          drawing: true,
+          fileName: req.file.filename,
+          originalName: req.file.originalname,
+          fileUrl: fileUrl,
+          filePath: relativePath,
+          fileSize: req.file.size,
+          mimeType: req.file.mimetype,
+          scale: scale,
+          uploadedAt: new Date().toISOString(),
+          uploadedBy: userId,
+          quickTakeoff: true
+        }
+      },
+      user_id: userId
+    };
+
+    const takeoffResult = await takeoffService.createTakeoff(takeoffOperation);
+
+    if (!takeoffResult.success) {
+      console.error('❌ Erro ao criar takeoff:', takeoffResult.error);
+      res.status(500).json({
+        success: false,
+        error: 'Erro ao criar takeoff',
+        message: takeoffResult.message || 'Falha ao processar takeoff',
+        details: takeoffResult.error
+      });
+      return;
+    }
+
+    // Resposta de sucesso com dados do takeoff criado
     res.status(201).json({
       success: true,
-      message: 'Takeoff enviado com sucesso!',
+      message: 'Takeoff enviado e processado com sucesso!',
       data: {
+        takeoff: takeoffResult.data,
+        file: {
+          id: req.file.filename,
+          filename: req.file.filename,
+          originalName: req.file.originalname,
+          size: req.file.size,
+          mimeType: req.file.mimetype,
+          url: fileUrl,
+          path: relativePath
+        },
         projectId,
-        filename: req.file.filename,
-        file_path: `/uploads/takeoff/${req.file.filename}`
+        scale
       }
     });
     
@@ -296,7 +360,8 @@ router.post('/takeoff/:projectId', upload.single('file'), (req: Request, res: Re
     res.status(500).json({
       success: false,
       error: 'Erro interno no upload',
-      message: 'Falha ao processar takeoff'
+      message: 'Falha ao processar takeoff',
+      details: error.message
     });
   }
 });
