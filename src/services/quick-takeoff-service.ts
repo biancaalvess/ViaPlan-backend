@@ -1,4 +1,4 @@
-import { TakeoffUnifiedService } from './takeoff-unified-service';
+import { TakeoffUnifiedService, TakeoffCreationData } from './takeoff-unified-service';
 import { CreateOperation, DeleteOperation } from '../types/unified';
 import path from 'path';
 import fs from 'fs';
@@ -43,13 +43,18 @@ export class QuickTakeoffService {
       }
 
       // Criar takeoff básico
-      const takeoffData: CreateOperation<any> = {
+      const takeoffData: CreateOperation<TakeoffCreationData> = {
         data: {
           project_id: projectId,
           name: `Quick Takeoff - ${fileName}`,
-          description: 'Takeoff criado automaticamente',
-          scale: scale,
-          status: 'draft'
+          description: `Takeoff criado automaticamente (escala: ${scale})`,
+          type: 'custom',
+          priority: 'medium',
+          metadata: {
+            scale: scale,
+            fileName: fileName,
+            quickTakeoff: true
+          }
         },
         user_id: userId
       };
