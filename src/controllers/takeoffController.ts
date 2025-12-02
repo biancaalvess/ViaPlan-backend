@@ -176,27 +176,92 @@ export class TakeoffController {
       const userId = (req as any).user?.id;
 
       if (!userId) {
-        res.status(401).json({ message: 'Usuário não autenticado' });
+        res.status(401).json({ 
+          success: false,
+          message: 'Usuário não autenticado' 
+        });
         return;
       }
 
-      console.log('🔧 Buscando resumo do takeoff:', projectId);
+      // Buscar todos os takeoffs do projeto
+      const result = await takeoffService.listTakeoffs({ 
+        project_id: projectId 
+      }, userId);
+
+      if (!result.success) {
+        res.status(400).json(result);
+        return;
+      }
+
+      const takeoffs = result.data?.items || result.data?.data || [];
       
+      // Calcular totais
+      let totalMeasurements = takeoffs.length;
+      let totalLength = 0;
+      let totalArea = 0;
+      let totalVolume = 0;
+      let totalCost = 0;
+
+      // Agrupar por tipo
+      const byType: Record<string, number> = {};
+      const byStatus: Record<string, number> = {};
+
+      takeoffs.forEach((takeoff: any) => {
+        // Somar comprimentos
+        if (takeoff.total_length) {
+          totalLength += takeoff.total_length;
+        } else if (takeoff.metadata?.length) {
+          totalLength += takeoff.metadata.length;
+        }
+
+        // Somar áreas
+        if (takeoff.total_area) {
+          totalArea += takeoff.total_area;
+        } else if (takeoff.metadata?.area) {
+          totalArea += takeoff.metadata.area;
+        }
+
+        // Somar volumes
+        if (takeoff.total_volume) {
+          totalVolume += takeoff.total_volume;
+        } else if (takeoff.metadata?.volume) {
+          totalVolume += takeoff.metadata.volume;
+        }
+
+        // Somar custos
+        if (takeoff.total_cost) {
+          totalCost += takeoff.total_cost;
+        }
+
+        // Contar por tipo
+        const type = takeoff.type || 'unknown';
+        byType[type] = (byType[type] || 0) + 1;
+
+        // Contar por status
+        const status = takeoff.status || 'unknown';
+        byStatus[status] = (byStatus[status] || 0) + 1;
+      });
+
       res.json({
         success: true,
         data: {
-          totalMeasurements: 0,
-          totalLength: 0,
-          totalArea: 0,
-          totalVolume: 0
-        }
+          totalMeasurements,
+          totalLength: Math.round(totalLength * 100) / 100,
+          totalArea: Math.round(totalArea * 100) / 100,
+          totalVolume: Math.round(totalVolume * 100) / 100,
+          totalCost: Math.round(totalCost * 100) / 100,
+          byType,
+          byStatus,
+          takeoffs: takeoffs.length
+        },
+        message: 'Resumo calculado com sucesso'
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao buscar resumo:', error);
       res.status(500).json({
         success: false,
         message: 'Erro interno do servidor',
-        error: error instanceof Error ? error.message : 'Erro desconhecido'
+        error: error.message
       });
     }
   }
@@ -268,29 +333,66 @@ export class TakeoffController {
       const userId = (req as any).user?.id;
 
       if (!userId) {
-        res.status(401).json({ message: 'Usuário não autenticado' });
+        res.status(401).json({ 
+          success: false,
+          message: 'Usuário não autenticado' 
+        });
         return;
       }
 
-      console.log('🔧 Buscando todas as medições:', projectId);
+      // Buscar todos os takeoffs do projeto
+      const result = await takeoffService.listTakeoffs({ 
+        project_id: projectId 
+      }, userId);
+
+      if (!result.success) {
+        res.status(400).json(result);
+        return;
+      }
+
+      const allTakeoffs = result.data?.items || result.data?.data || [];
+
+      // Separar por tipo
+      const measurements = allTakeoffs.filter((t: any) => 
+        !t.metadata?.isDrawing && 
+        !t.metadata?.isNote && 
+        !t.metadata?.isYardage
+      );
       
+      const trenches = allTakeoffs.filter((t: any) => t.type === 'trench');
+      const conduits = allTakeoffs.filter((t: any) => t.type === 'conduit');
+      const vaults = allTakeoffs.filter((t: any) => t.type === 'vault');
+      
+      const yardages = allTakeoffs.filter((t: any) => 
+        t.metadata?.isYardage === true || 
+        t.metadata?.yardage === true ||
+        (t.total_volume && t.total_volume > 0)
+      );
+      
+      const notes = allTakeoffs.filter((t: any) => 
+        t.metadata?.isNote === true || 
+        t.metadata?.note === true
+      );
+
       res.json({
         success: true,
         data: {
-          measurements: [],
-          trenches: [],
-          conduits: [],
-          vaults: [],
-          yardages: [],
-          notes: []
-        }
+          measurements,
+          trenches,
+          conduits,
+          vaults,
+          yardages,
+          notes,
+          total: allTakeoffs.length
+        },
+        message: 'Todas as medições listadas com sucesso'
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao buscar medições:', error);
       res.status(500).json({
         success: false,
         message: 'Erro interno do servidor',
-        error: error instanceof Error ? error.message : 'Erro desconhecido'
+        error: error.message
       });
     }
   }
@@ -302,22 +404,40 @@ export class TakeoffController {
       const userId = (req as any).user?.id;
 
       if (!userId) {
-        res.status(401).json({ message: 'Usuário não autenticado' });
+        res.status(401).json({ 
+          success: false,
+          message: 'Usuário não autenticado' 
+        });
         return;
       }
 
-      console.log('🔧 Limpando dados do projeto:', projectId);
+      if (!projectId) {
+        res.status(400).json({
+          success: false,
+          message: 'projectId é obrigatório'
+        });
+        return;
+      }
+
+      // Deletar todos os takeoffs do projeto
+      const result = await takeoffService.deleteTakeoffsByProject(projectId, userId);
       
+      if (!result.success) {
+        res.status(400).json(result);
+        return;
+      }
+
       res.json({
         success: true,
-        message: 'Dados limpos com sucesso'
+        message: result.message || 'Dados limpos com sucesso',
+        data: result.data
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao limpar dados:', error);
       res.status(500).json({
         success: false,
         message: 'Erro interno do servidor',
-        error: error instanceof Error ? error.message : 'Erro desconhecido'
+        error: error.message
       });
     }
   }

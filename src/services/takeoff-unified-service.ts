@@ -376,6 +376,58 @@ export class TakeoffUnifiedService {
   }
   
   /**
+   * Deletar todos os takeoffs de um projeto
+   */
+  async deleteTakeoffsByProject(projectId: string, _userId: string): Promise<ApiResponse<{ deleted: number }>> {
+    try {
+      const files = fs.readdirSync(this.takeoffsDir);
+      let deleted = 0;
+      const errors: string[] = [];
+
+      for (const file of files) {
+        if (file.endsWith('.json')) {
+          const filePath = path.join(this.takeoffsDir, file);
+          try {
+            const content = fs.readFileSync(filePath, 'utf-8');
+            const takeoff = JSON.parse(content);
+            
+            // Verificar se pertence ao projeto
+            if (takeoff.project_id === projectId) {
+              fs.unlinkSync(filePath);
+              deleted++;
+              log.info('Takeoff deletado por projeto', { id: takeoff.id, projectId });
+            }
+          } catch (e: any) {
+            errors.push(`Erro ao processar arquivo ${file}: ${e.message}`);
+            log.warn(`Erro ao processar arquivo ${file}`, e);
+          }
+        }
+      }
+
+      if (errors.length > 0 && deleted === 0) {
+        return {
+          success: false,
+          message: 'Erro ao deletar takeoffs',
+          error: errors.join('; ')
+        };
+      }
+
+      return {
+        success: true,
+        message: `${deleted} takeoff(s) removido(s) com sucesso`,
+        data: { deleted }
+      };
+    } catch (error: any) {
+      log.error('Erro ao deletar takeoffs por projeto', error);
+      return {
+        success: false,
+        message: 'Erro ao deletar takeoffs',
+        error: error.message
+      };
+    }
+  }
+
+  /**
    * Obter estatísticas de takeoffs
    */
   async getTakeoffStats(_userId: string): Promise<ApiResponse<BaseStats>> {
