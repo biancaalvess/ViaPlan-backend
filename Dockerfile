@@ -8,8 +8,8 @@ WORKDIR /app
 COPY package*.json ./
 COPY tsconfig.json ./
 
-# Instalar dependências
-RUN npm ci --only=production=false
+# Instalar dependências (incluindo devDependencies para build)
+RUN npm install
 
 # Copiar código fonte
 COPY src ./src
@@ -32,7 +32,7 @@ COPY package*.json ./
 COPY tsconfig.json ./
 
 # Instalar apenas dependências de produção
-RUN npm ci --only=production && \
+RUN npm ci --omit=dev && \
     npm cache clean --force
 
 # Copiar código compilado do estágio builder
