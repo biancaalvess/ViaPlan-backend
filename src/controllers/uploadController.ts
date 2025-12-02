@@ -116,7 +116,7 @@ export class UploadController {
         }
 
         const { name, code, description, project_id, status, location } = req.body;
-        // const userId = (req as any).user?.id; // Não usado
+        const userId = (req as any).user?.id || (req as any).user?.userId || 'system';
 
         if (!name || !code) {
           res.status(400).json({ 
@@ -133,7 +133,7 @@ export class UploadController {
           project_id: project_id || '',
           status: status || 'active',
           location: location || undefined,
-          created_by: 'system', // TODO: usar usuário autenticado
+          created_by: userId,
           file_path: req.file.path,
           file_url: `/uploads/plants/${req.file.filename}`,
           file_size: req.file.size,
