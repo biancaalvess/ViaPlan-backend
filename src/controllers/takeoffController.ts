@@ -3,6 +3,10 @@
 // ============================================================================
 
 import { Request, Response } from 'express';
+import { TakeoffUnifiedService } from '../services/takeoff-unified-service';
+
+// Instanciar o serviço
+const takeoffService = new TakeoffUnifiedService();
 
 // Tipos para o sistema de takeoff
 export interface TakeoffProject {
@@ -24,19 +28,22 @@ export class TakeoffController {
       const userId = (req as any).user?.id;
 
       if (!userId) {
-        res.status(401).json({ message: 'Usuário não autenticado' });
+        res.status(401).json({ 
+          success: false,
+          message: 'Usuário não autenticado' 
+        });
         return;
       }
 
-      console.log('🔧 Buscando medições do projeto:', projectId);
+      // Chama o serviço implementado
+      const result = await takeoffService.listTakeoffs({ project_id: projectId }, userId);
+
+      if (!result.success) {
+        res.status(400).json(result);
+        return;
+      }
       
-      // Sistema sem banco de dados - retornar vazio ou usar sistema de medições
-      res.json({
-        success: true,
-        data: [],
-        total: 0,
-        message: 'Sistema de takeoff requer implementação baseada em arquivos'
-      });
+      res.json(result);
     } catch (error) {
       console.error('Erro ao buscar medições:', error);
       res.status(500).json({
@@ -54,16 +61,30 @@ export class TakeoffController {
       const userId = (req as any).user?.id;
 
       if (!userId) {
-        res.status(401).json({ message: 'Usuário não autenticado' });
+        res.status(401).json({ 
+          success: false,
+          message: 'Usuário não autenticado' 
+        });
         return;
       }
 
-      console.log('🔧 Criando medição para projeto:', projectId);
+      // Adaptar o body para o formato esperado pelo CreateOperation
+      const operation = {
+        data: {
+          ...req.body,
+          project_id: projectId
+        },
+        user_id: userId
+      };
+
+      const result = await takeoffService.createTakeoff(operation);
       
-      res.status(501).json({
-        success: false,
-        message: 'Funcionalidade de takeoff requer implementação baseada em arquivos'
-      });
+      if (!result.success) {
+        res.status(400).json(result);
+        return;
+      }
+      
+      res.status(201).json(result);
     } catch (error) {
       console.error('Erro ao criar medição:', error);
       res.status(500).json({
@@ -81,16 +102,26 @@ export class TakeoffController {
       const userId = (req as any).user?.id;
 
       if (!userId) {
-        res.status(401).json({ message: 'Usuário não autenticado' });
+        res.status(401).json({ 
+          success: false,
+          message: 'Usuário não autenticado' 
+        });
         return;
       }
 
-      console.log('🔧 Atualizando medição:', id);
+      const updateData = {
+        id,
+        ...req.body
+      };
+
+      const result = await takeoffService.updateTakeoff(id, updateData, userId);
       
-      res.status(501).json({
-        success: false,
-        message: 'Funcionalidade de takeoff requer implementação baseada em arquivos'
-      });
+      if (!result.success) {
+        res.status(400).json(result);
+        return;
+      }
+      
+      res.json(result);
     } catch (error) {
       console.error('Erro ao atualizar medição:', error);
       res.status(500).json({
@@ -108,16 +139,26 @@ export class TakeoffController {
       const userId = (req as any).user?.id;
 
       if (!userId) {
-        res.status(401).json({ message: 'Usuário não autenticado' });
+        res.status(401).json({ 
+          success: false,
+          message: 'Usuário não autenticado' 
+        });
         return;
       }
 
-      console.log('🔧 Deletando medição:', id);
+      const deleteData = { 
+        id,
+        user_id: userId
+      };
+
+      const result = await takeoffService.deleteTakeoff(deleteData);
       
-      res.status(501).json({
-        success: false,
-        message: 'Funcionalidade de takeoff requer implementação baseada em arquivos'
-      });
+      if (!result.success) {
+        res.status(400).json(result);
+        return;
+      }
+      
+      res.json(result);
     } catch (error) {
       console.error('Erro ao deletar medição:', error);
       res.status(500).json({
@@ -167,19 +208,49 @@ export class TakeoffController {
       const userId = (req as any).user?.id;
 
       if (!userId) {
-        res.status(401).json({ message: 'Usuário não autenticado' });
+        res.status(401).json({ 
+          success: false,
+          message: 'Usuário não autenticado' 
+        });
         return;
       }
 
-      console.log('🔧 Buscando estatísticas:', projectId);
+      // Obter stats gerais e filtrar por projeto se necessário
+      const result = await takeoffService.getTakeoffStats(userId);
       
-      res.json({
-        success: true,
-        data: {
-          count: 0,
-          byType: {}
+      if (!result.success) {
+        res.status(400).json(result);
+        return;
+      }
+
+      // Se projectId foi fornecido, filtrar takeoffs do projeto
+      if (projectId) {
+        const listResult = await takeoffService.listTakeoffs({ project_id: projectId }, userId);
+        if (listResult.success && listResult.data) {
+          const projectTakeoffs = listResult.data.items || listResult.data.data || [];
+          const byType: Record<string, number> = {};
+          
+          projectTakeoffs.forEach((takeoff: any) => {
+            const type = takeoff.type || 'unknown';
+            byType[type] = (byType[type] || 0) + 1;
+          });
+
+          res.json({
+            success: true,
+            data: {
+              count: projectTakeoffs.length,
+              byType,
+              total: result.data?.total || 0,
+              active: result.data?.active || 0,
+              inactive: result.data?.inactive || 0,
+              archived: result.data?.archived || 0
+            }
+          });
+          return;
         }
-      });
+      }
+      
+      res.json(result);
     } catch (error) {
       console.error('Erro ao buscar estatísticas:', error);
       res.status(500).json({
