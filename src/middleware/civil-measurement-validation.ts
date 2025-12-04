@@ -57,6 +57,8 @@ export const civilMeasurementSchemas = {
   // 2. PAREDES
   wall: Joi.object({
     type: Joi.string().valid('wall').required(),
+    project_id: Joi.string().uuid().optional(),
+    scale: scaleSchema,
     geometry: Joi.object({
       polyline: polylineSchema.required(),
       height_m: Joi.number().positive().required(),
