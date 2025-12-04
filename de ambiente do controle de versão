@@ -1,0 +1,10 @@
+[33m865cac0[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m fix: corrigir Dockerfile e atualizar package-lock.json
+[33mea453d3[m chore: adicionar .dockerignore e atualizar .gitignore
+[33meef715f[m feat: adicionar Dockerfile e package.json para deploy
+[33m0fa6879[m chore: adicionar package-lock.json com dependências travadas
+[33ma05c673[m feat: adicionar serviços de negócio
+[33m351031b[m feat: adicionar controladores da API
+[33m9c70bb9[m feat: adicionar rotas da API
+[33m71f5951[m feat: adicionar middlewares adicionais
+[33m10aaaa9[m feat: adicionar configuração principal da aplicação
+[33mdc6cd72[m feat: adicionar utilitários do projeto

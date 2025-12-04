@@ -30,11 +30,19 @@ const polygonSchema = Joi.array().min(3).items(coordinateSchema).required()
 // Schema para polilinha (mínimo 2 pontos)
 const polylineSchema = Joi.array().min(2).items(coordinateSchema).required();
 
+// Schema para escala (formato "1:100")
+const scaleSchema = Joi.string().pattern(/^\d+:\d+$/).optional()
+  .messages({
+    'string.pattern.base': 'Escala deve estar no formato "1:100"'
+  });
+
 // Schemas específicos para cada tipo de medição
 export const civilMeasurementSchemas = {
   // 1. PLANTA/LAYOUT
   layout: Joi.object({
     type: Joi.string().valid('layout').required(),
+    project_id: Joi.string().uuid().optional(),
+    scale: scaleSchema,
     geometry: Joi.object({
       lines: Joi.array().items(polylineSchema).min(1).required()
     }).required(),
@@ -83,6 +91,8 @@ export const civilMeasurementSchemas = {
   // 3. ÁREA
   area: Joi.object({
     type: Joi.string().valid('area').required(),
+    project_id: Joi.string().uuid().optional(),
+    scale: scaleSchema,
     geometry: Joi.object({
       polygon: polygonSchema.required()
     }).required(),
@@ -110,6 +120,8 @@ export const civilMeasurementSchemas = {
   // 4. VÃOS/ABERTURAS
   opening: Joi.object({
     type: Joi.string().valid('opening').required(),
+    project_id: Joi.string().uuid().optional(),
+    scale: scaleSchema,
     geometry: Joi.object({
       shape: Joi.string().valid('line', 'rectangle').required(),
       coordinates: Joi.array().items(coordinateSchema).min(2).max(4).required(),
@@ -132,6 +144,8 @@ export const civilMeasurementSchemas = {
   // 5. LAJES/PISOS
   slab: Joi.object({
     type: Joi.string().valid('slab').required(),
+    project_id: Joi.string().uuid().optional(),
+    scale: scaleSchema,
     geometry: Joi.object({
       polygon: polygonSchema.required(),
       thickness_m: Joi.number().positive().required()
@@ -163,6 +177,8 @@ export const civilMeasurementSchemas = {
   // 6. FUNDAÇÃO
   foundation: Joi.object({
     type: Joi.string().valid('foundation').required(),
+    project_id: Joi.string().uuid().optional(),
+    scale: scaleSchema,
     geometry: Joi.object({
       foundation_type: Joi.string().valid(
         'bloco',
@@ -224,6 +240,8 @@ export const civilMeasurementSchemas = {
   // 7. ESTRUTURA (CONCRETO)
   structure: Joi.object({
     type: Joi.string().valid('structure').required(),
+    project_id: Joi.string().uuid().optional(),
+    scale: scaleSchema,
     geometry: Joi.object({
       element_type: Joi.string().valid('viga', 'pilar', 'laje_estrutural').required(),
       polyline: polylineSchema.when('element_type', {
@@ -289,6 +307,8 @@ export const civilMeasurementSchemas = {
   // 8. ACABAMENTOS
   finishing: Joi.object({
     type: Joi.string().valid('finishing').required(),
+    project_id: Joi.string().uuid().optional(),
+    scale: scaleSchema,
     geometry: Joi.object({
       surface_area: Joi.object({
         polygon: polygonSchema.optional(),
@@ -320,6 +340,8 @@ export const civilMeasurementSchemas = {
   // 9. COBERTURA
   roof: Joi.object({
     type: Joi.string().valid('roof').required(),
+    project_id: Joi.string().uuid().optional(),
+    scale: scaleSchema,
     geometry: Joi.object({
       planes: Joi.array().items(
         Joi.object({
@@ -349,6 +371,8 @@ export const civilMeasurementSchemas = {
   // 10. NOTA
   note: Joi.object({
     type: Joi.string().valid('note').required(),
+    project_id: Joi.string().uuid().optional(),
+    scale: scaleSchema,
     attributes: Joi.object({
       text: Joi.string().required(),
       author: Joi.string().optional(),

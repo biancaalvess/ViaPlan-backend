@@ -105,13 +105,17 @@ export class CivilMeasurementService {
     switch (type) {
       case 'layout': {
         const data = partialData as Partial<LayoutMeasurement>;
-        const output = calculateLayoutOutput(data.geometry?.lines || []);
+        const output = calculateLayoutOutput(
+          data.geometry?.lines || [],
+          data.scale
+        );
         
         return {
           id: '',
           type: 'layout',
           project_id: data.project_id || '',
           label: data.label || '',
+          scale: data.scale,
           geometry: {
             lines: data.geometry?.lines || []
           },
@@ -146,7 +150,8 @@ export class CivilMeasurementService {
           data.geometry.height_m || 2.70, // Altura padrão brasileira
           data.geometry.thickness_m || BRAZILIAN_PRESETS.standard_thicknesses.wall_internal_m,
           blockParams,
-          data.openings // Lista de vãos que impactam esta parede
+          data.openings, // Lista de vãos que impactam esta parede
+          data.scale // Escala para conversão de pixels para metros
         );
         
         return {
@@ -154,6 +159,7 @@ export class CivilMeasurementService {
           type: 'wall',
           project_id: data.project_id || '',
           label: data.label || '',
+          scale: data.scale,
           geometry: {
             polyline: data.geometry.polyline,
             height_m: data.geometry.height_m || 2.70,
@@ -178,13 +184,17 @@ export class CivilMeasurementService {
           throw new Error('Área deve ter pelo menos 3 pontos');
         }
         
-        const calculations = calculateAreaMeasurements(data.geometry.polygon);
+        const calculations = calculateAreaMeasurements(
+          data.geometry.polygon,
+          data.scale
+        );
         
         return {
           id: '',
           type: 'area',
           project_id: data.project_id || '',
           label: data.label || '',
+          scale: data.scale,
           geometry: {
             polygon: data.geometry.polygon
           },
@@ -237,7 +247,8 @@ export class CivilMeasurementService {
         
         const calculations = calculateSlabMeasurements(
           data.geometry.polygon,
-          data.geometry.thickness_m || BRAZILIAN_PRESETS.standard_thicknesses.slab_m
+          data.geometry.thickness_m || BRAZILIAN_PRESETS.standard_thicknesses.slab_m,
+          data.scale
         );
         
         return {
@@ -245,6 +256,7 @@ export class CivilMeasurementService {
           type: 'slab',
           project_id: data.project_id || '',
           label: data.label || '',
+          scale: data.scale,
           geometry: {
             polygon: data.geometry.polygon,
             thickness_m: data.geometry.thickness_m || BRAZILIAN_PRESETS.standard_thicknesses.slab_m
@@ -275,7 +287,8 @@ export class CivilMeasurementService {
           data.geometry?.height_m,
           data.geometry?.polygon,
           data.geometry?.thickness_m,
-          1
+          1,
+          data.scale
         );
         
         return {
@@ -283,6 +296,7 @@ export class CivilMeasurementService {
           type: 'foundation',
           project_id: data.project_id || '',
           label: data.label || '',
+          scale: data.scale,
           geometry: {
             foundation_type: foundationType,
             dimensions: data.geometry?.dimensions,
@@ -314,7 +328,8 @@ export class CivilMeasurementService {
           data.geometry?.height_m, // Para pilares
           data.geometry?.polygon,
           data.geometry?.thickness_m,
-          data.attributes?.rebar_rate_kg_m3
+          data.attributes?.rebar_rate_kg_m3,
+          data.scale
         );
         
         return {
@@ -322,6 +337,7 @@ export class CivilMeasurementService {
           type: 'structure',
           project_id: data.project_id || '',
           label: data.label || '',
+          scale: data.scale,
           geometry: {
             element_type: elementType,
             polyline: data.geometry?.polyline,
@@ -351,7 +367,8 @@ export class CivilMeasurementService {
         const calculations = calculateFinishingMeasurements(
           data.geometry?.surface_area?.polygon,
           data.geometry?.surface_area?.surfaces,
-          lossPercent
+          lossPercent,
+          data.scale
         );
         
         return {
@@ -359,6 +376,7 @@ export class CivilMeasurementService {
           type: 'finishing',
           project_id: data.project_id || '',
           label: data.label || '',
+          scale: data.scale,
           geometry: {
             surface_area: {
               polygon: data.geometry?.surface_area?.polygon,
@@ -410,13 +428,14 @@ export class CivilMeasurementService {
           return result;
         });
         
-        const calculations = calculateRoofMeasurements(planes);
+        const calculations = calculateRoofMeasurements(planes, data.scale);
         
         return {
           id: '',
           type: 'roof',
           project_id: data.project_id || '',
           label: data.label || '',
+          scale: data.scale,
           geometry: {
             planes: data.geometry.planes
           },

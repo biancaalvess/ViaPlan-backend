@@ -11,6 +11,26 @@ import {
 
 const EPSILON = 1e-6;
 
+/**
+ * Parse escala do formato "1:100" para fator numérico
+ */
+function parseScale(scale: string): number {
+  const match = scale.match(/^(\d+):(\d+)$/);
+  if (!match) {
+    throw new Error(`Formato de escala inválido: ${scale}. Use formato "1:100"`);
+  }
+  const [, numerator, denominator] = match;
+  return parseFloat(denominator) / parseFloat(numerator);
+}
+
+/**
+ * Converter coordenadas do canvas (pixels) para coordenadas reais (metros) usando escala
+ */
+function canvasToReal(distance: number, scale: string): number {
+  const scaleFactor = parseScale(scale);
+  return distance * scaleFactor;
+}
+
 // ============================================================================
 // PRESETS BRASILEIROS
 // ============================================================================
@@ -74,21 +94,32 @@ function distance2D(p1: Coordinate, p2: Coordinate): number {
 
 /**
  * Calcular comprimento total de uma polilinha
+ * @param coordinates Coordenadas em pixels do canvas
+ * @param scale Escala no formato "1:100" (opcional, se não fornecido retorna em pixels)
  */
-function calculatePolylineLength(coordinates: Coordinate[]): number {
+function calculatePolylineLength(coordinates: Coordinate[], scale?: string): number {
   if (coordinates.length < 2) return 0;
   
   let totalLength = 0;
   for (let i = 0; i < coordinates.length - 1; i++) {
-    totalLength += distance2D(coordinates[i], coordinates[i + 1]);
+    const segmentLength = distance2D(coordinates[i], coordinates[i + 1]);
+    if (scale) {
+      // Converter de pixels para metros usando escala
+      totalLength += canvasToReal(segmentLength, scale);
+    } else {
+      // Retornar em pixels se escala não fornecida
+      totalLength += segmentLength;
+    }
   }
   return totalLength;
 }
 
 /**
  * Calcular área de polígono usando fórmula do Shoelace
+ * @param coordinates Coordenadas em pixels do canvas
+ * @param scale Escala no formato "1:100" (opcional, se não fornecido retorna em pixels²)
  */
-function calculatePolygonArea(coordinates: Coordinate[]): number {
+function calculatePolygonArea(coordinates: Coordinate[], scale?: string): number {
   if (coordinates.length < 3) return 0;
   
   // Garantir que está fechado
@@ -106,13 +137,24 @@ function calculatePolygonArea(coordinates: Coordinate[]): number {
     sum2 += points[i + 1].x * points[i].y;
   }
   
-  return Math.abs(sum1 - sum2) / 2;
+  // Área no canvas (pixels²)
+  const canvasArea = Math.abs(sum1 - sum2) / 2;
+  
+  if (scale) {
+    // Converter para área real usando escala² (porque é área)
+    const scaleFactor = parseScale(scale);
+    return canvasArea * (scaleFactor * scaleFactor);
+  }
+  
+  return canvasArea;
 }
 
 /**
  * Calcular perímetro de polígono
+ * @param coordinates Coordenadas em pixels do canvas
+ * @param scale Escala no formato "1:100" (opcional, se não fornecido retorna em pixels)
  */
-function calculatePolygonPerimeter(coordinates: Coordinate[]): number {
+function calculatePolygonPerimeter(coordinates: Coordinate[], scale?: string): number {
   if (coordinates.length < 3) return 0;
   
   const closed = coordinates.length > 0 && 
@@ -123,7 +165,14 @@ function calculatePolygonPerimeter(coordinates: Coordinate[]): number {
   
   let perimeter = 0;
   for (let i = 0; i < points.length - 1; i++) {
-    perimeter += distance2D(points[i], points[i + 1]);
+    const segmentLength = distance2D(points[i], points[i + 1]);
+    if (scale) {
+      // Converter de pixels para metros usando escala
+      perimeter += canvasToReal(segmentLength, scale);
+    } else {
+      // Retornar em pixels se escala não fornecida
+      perimeter += segmentLength;
+    }
   }
   
   return perimeter;
@@ -134,7 +183,8 @@ function calculatePolygonPerimeter(coordinates: Coordinate[]): number {
 // ============================================================================
 
 export function calculateLayoutOutput(
-  lines: Coordinate[][]
+  lines: Coordinate[][],
+  scale?: string
 ): { 
   coordinates: Coordinate[]; 
   total_length_m: number;
@@ -161,20 +211,25 @@ export function calculateLayoutOutput(
       for (let i = 0; i < line.length - 1; i++) {
         const dx = line[i + 1].x - line[i].x;
         const dy = line[i + 1].y - line[i].y;
-        const segmentLength = Math.sqrt(dx * dx + dy * dy);
+        const segmentLengthPixels = Math.sqrt(dx * dx + dy * dy);
         
-        if (segmentLength > EPSILON) {
+        if (segmentLengthPixels > EPSILON) {
           // Vetor normalizado
-          const normalizedX = dx / segmentLength;
-          const normalizedY = dy / segmentLength;
+          const normalizedX = dx / segmentLengthPixels;
+          const normalizedY = dy / segmentLengthPixels;
+          
+          // Converter para metros se escala fornecida
+          const segmentLengthM = scale 
+            ? canvasToReal(segmentLengthPixels, scale)
+            : segmentLengthPixels;
           
           segmentDirections.push({
             segment_index: globalSegmentIndex++,
             direction: { x: normalizedX, y: normalizedY },
-            length_m: segmentLength
+            length_m: segmentLengthM
           });
           
-          totalLength += segmentLength;
+          totalLength += segmentLengthM;
         }
       }
     }
@@ -203,7 +258,8 @@ export function calculateWallMeasurements(
   height_m: number,
   thickness_m: number,
   blockParams?: BlockParameters,
-  openings?: OpeningReference[]
+  openings?: OpeningReference[],
+  scale?: string
 ): {
   length_m: number;
   masonry_area_m2: number;
@@ -213,8 +269,8 @@ export function calculateWallMeasurements(
   estimated_mortar_m3?: number;
   estimated_weight_kg?: number;
 } {
-  // 2.1 Comprimento (m)
-  const length = calculatePolylineLength(polyline);
+  // 2.1 Comprimento (m) - converter de pixels para metros usando escala
+  const length = calculatePolylineLength(polyline, scale);
   
   // 2.2 Área de alvenaria (sem vãos)
   const masonryArea = length * height_m;
@@ -278,13 +334,14 @@ export function calculateWallMeasurements(
 // ============================================================================
 
 export function calculateAreaMeasurements(
-  polygon: Coordinate[]
+  polygon: Coordinate[],
+  scale?: string
 ): {
   total_area_m2: number;
   perimeter_m: number;
 } {
-  const area = calculatePolygonArea(polygon);
-  const perimeter = calculatePolygonPerimeter(polygon);
+  const area = calculatePolygonArea(polygon, scale);
+  const perimeter = calculatePolygonPerimeter(polygon, scale);
   
   return {
     total_area_m2: area,
@@ -318,12 +375,13 @@ export function calculateOpeningMeasurements(
 
 export function calculateSlabMeasurements(
   polygon: Coordinate[],
-  thickness_m: number
+  thickness_m: number,
+  scale?: string
 ): {
   area_m2: number;
   volume_m3: number;
 } {
-  const area = calculatePolygonArea(polygon);
+  const area = calculatePolygonArea(polygon, scale);
   const volume = area * thickness_m;
   
   return {
@@ -344,7 +402,8 @@ export function calculateFoundationVolume(
   height_m?: number,
   polygon?: Coordinate[],
   thickness_m?: number,
-  quantity: number = 1
+  quantity: number = 1,
+  scale?: string
 ): {
   volume_m3: number;
   quantity?: number;
@@ -357,12 +416,12 @@ export function calculateFoundationVolume(
     }
   } else if (foundation_type === 'viga_baldrame') {
     if (polyline && width_m && height_m) {
-      const length = calculatePolylineLength(polyline);
+      const length = calculatePolylineLength(polyline, scale);
       volume = length * width_m * height_m;
     }
   } else if (foundation_type === 'radier') {
     if (polygon && thickness_m) {
-      const area = calculatePolygonArea(polygon);
+      const area = calculatePolygonArea(polygon, scale);
       volume = area * thickness_m;
     }
   }
@@ -392,7 +451,8 @@ export function calculateStructureVolume(
   height_m?: number,
   polygon?: Coordinate[],
   thickness_m?: number,
-  rebar_rate_kg_m3?: number
+  rebar_rate_kg_m3?: number,
+  scale?: string
 ): {
   volume_m3: number;
   area_m2?: number;
@@ -405,7 +465,7 @@ export function calculateStructureVolume(
   if (element_type === 'viga') {
     let elementLength = length_m || 0;
     if (polyline && !length_m) {
-      elementLength = calculatePolylineLength(polyline);
+      elementLength = calculatePolylineLength(polyline, scale);
     }
     
     let sectionArea = 0;
@@ -441,7 +501,7 @@ export function calculateStructureVolume(
   // 7.3 Volume laje estrutural: V = Área × E
   else if (element_type === 'laje_estrutural') {
     if (polygon && thickness_m) {
-      area = calculatePolygonArea(polygon);
+      area = calculatePolygonArea(polygon, scale);
       volume = area * thickness_m;
     }
   }
@@ -477,7 +537,8 @@ export function calculateStructureVolume(
 export function calculateFinishingMeasurements(
   polygon?: Coordinate[],
   surfaces?: Array<{ polygon: Coordinate[]; height_m?: number }>,
-  standard_loss_percent: number = 0
+  standard_loss_percent: number = 0,
+  scale?: string
 ): {
   net_area_m2: number;
   estimated_consumption?: number;
@@ -486,13 +547,13 @@ export function calculateFinishingMeasurements(
   let totalArea = 0;
   
   if (polygon) {
-    totalArea = calculatePolygonArea(polygon);
+    totalArea = calculatePolygonArea(polygon, scale);
   } else if (surfaces) {
     for (const surface of surfaces) {
-      const area = calculatePolygonArea(surface.polygon);
+      const area = calculatePolygonArea(surface.polygon, scale);
       // Se for parede, multiplicar pela altura
       if (surface.height_m) {
-        const perimeter = calculatePolygonPerimeter(surface.polygon);
+        const perimeter = calculatePolygonPerimeter(surface.polygon, scale);
         totalArea += perimeter * surface.height_m;
       } else {
         totalArea += area;
@@ -526,7 +587,8 @@ export function calculateRoofMeasurements(
     inclination_degrees?: number; 
     inclination_percent?: number; // Inclinação em % (altura/100)
     azimuth_degrees?: number;
-  }>
+  }>,
+  scale?: string
 ): {
   real_area_m2: number;
   projected_area_m2: number;
@@ -536,7 +598,7 @@ export function calculateRoofMeasurements(
   
   for (const plane of planes) {
     // 9.1 Área projetada: Polígono
-    const area = calculatePolygonArea(plane.polygon);
+    const area = calculatePolygonArea(plane.polygon, scale);
     projectedArea += area;
     
     // 9.2 Área real

@@ -30,6 +30,7 @@ export interface BaseCivilMeasurement {
   type: CivilMeasurementType;
   project_id: string;
   label: string;
+  scale?: string; // Escala no formato "1:100" para conversão de pixels para metros
   created_at: string; // ISO8601
   updated_at: string; // ISO8601
   created_by?: string;
