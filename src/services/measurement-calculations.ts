@@ -12,23 +12,18 @@ interface Point {
   elevation?: number;
 }
 
-// Constantes de conversão de unidades
+// Constantes de conversão de unidades (padrão brasileiro - apenas unidades básicas)
+// Como usamos apenas uma unidade de cada tipo, as conversões são sempre 1
 const UNIT_CONVERSIONS: Record<Unit, number> = {
-  meters: 1,
-  feet: 0.3048,
-  inches: 0.0254,
-  millimeters: 0.001
+  meters: 1
 };
 
 const AREA_UNIT_CONVERSIONS: Record<AreaUnit, number> = {
-  square_meters: 1,
-  square_feet: 0.092903
+  square_meters: 1
 };
 
 const VOLUME_UNIT_CONVERSIONS: Record<VolumeUnit, number> = {
-  cubic_meters: 1,
-  cubic_yards: 0.764555,
-  cubic_feet: 0.0283168
+  cubic_meters: 1
 };
 
 // Tolerância numérica

@@ -10,14 +10,9 @@ import {
 } from '../types/measurement';
 
 // ============================================================================
-// CONSTANTES E CONVERSÕES
+// CONSTANTES E CONVERSÕES (Padrão Brasileiro - Sistema Métrico)
 // ============================================================================
 
-const FEET_TO_METERS = 0.3048;
-const METERS_TO_FEET = 3.28084;
-const CUBIC_FEET_TO_CUBIC_YARDS = 1 / 27;
-const CUBIC_METERS_TO_CUBIC_YARDS = 1.30795;
-const GALLONS_TO_CUBIC_FEET = 0.133681;
 const EPSILON = 1e-6;
 
 // ============================================================================
@@ -77,7 +72,8 @@ function calculatePolylineLength3D(coordinates: Coordinate[]): number {
  * Calcular comprimento total da trincheira
  */
 export function calculateTrenchLength(coordinates: Coordinate[]): number {
-  return calculatePolylineLength(coordinates);
+  const length = calculatePolylineLength(coordinates);
+  return isFinite(length) && length >= 0 ? length : 0;
 }
 
 /**
@@ -90,11 +86,15 @@ export function calculateTrenchVolume(
 ): number {
   const length = calculateTrenchLength(coordinates);
   
-  if (length === 0) return 0;
+  if (length === 0 || !isFinite(length)) return 0;
   
   // Se ambos são constantes
   if (width.type === 'constant' && depth.type === 'constant') {
-    return length * (width.value || 0) * (depth.value || 0);
+    const w = width.value || 0;
+    const d = depth.value || 0;
+    if (!isFinite(w) || !isFinite(d) || w <= 0 || d <= 0) return 0;
+    const volume = length * w * d;
+    return isFinite(volume) ? volume : 0;
   }
   
   // Se um ou ambos são variáveis, calcular por segmento
@@ -103,6 +103,8 @@ export function calculateTrenchVolume(
   
   for (let i = 0; i < segmentCount; i++) {
     const segmentLength = distance2D(coordinates[i], coordinates[i + 1]);
+    if (!isFinite(segmentLength) || segmentLength <= 0) continue;
+    
     const segmentWidth = width.type === 'variable' 
       ? (width.values?.[i] || 0)
       : (width.value || 0);
@@ -110,10 +112,15 @@ export function calculateTrenchVolume(
       ? (depth.values?.[i] || 0)
       : (depth.value || 0);
     
-    totalVolume += segmentLength * segmentWidth * segmentDepth;
+    if (!isFinite(segmentWidth) || !isFinite(segmentDepth) || segmentWidth <= 0 || segmentDepth <= 0) continue;
+    
+    const segmentVolume = segmentLength * segmentWidth * segmentDepth;
+    if (isFinite(segmentVolume)) {
+      totalVolume += segmentVolume;
+    }
   }
   
-  return totalVolume;
+  return isFinite(totalVolume) ? totalVolume : 0;
 }
 
 /**
@@ -200,16 +207,16 @@ function calculateCurvatureRadius(
  */
 export function validateBoreShotRadius(
   coordinates: Coordinate[],
-  minRadiusRequiredFt: number
+  minRadiusRequiredM: number
 ): RadiusCheck {
   const violations: RadiusCheck['violations'] = [];
-  let minRadiusActualFt = Infinity;
+  let minRadiusActualM = Infinity;
   
   if (coordinates.length < 3) {
     return {
       passed: true,
-      min_radius_required_ft: minRadiusRequiredFt,
-      min_radius_actual_ft: Infinity,
+      min_radius_required_m: minRadiusRequiredM,
+      min_radius_actual_m: Infinity,
       violations: []
     };
   }
@@ -222,25 +229,24 @@ export function validateBoreShotRadius(
       coordinates[i + 2]
     );
     
-    const radiusFt = radius * METERS_TO_FEET; // Assumindo coordenadas em metros
-    
-    if (radiusFt < minRadiusActualFt) {
-      minRadiusActualFt = radiusFt;
+    // Coordenadas já estão em metros
+    if (radius < minRadiusActualM) {
+      minRadiusActualM = radius;
     }
     
-    if (radiusFt < minRadiusRequiredFt) {
+    if (radius < minRadiusRequiredM) {
       violations.push({
         segment_index: i,
-        actual_radius_ft: radiusFt,
-        required_radius_ft: minRadiusRequiredFt
+        actual_radius_m: radius,
+        required_radius_m: minRadiusRequiredM
       });
     }
   }
   
   return {
     passed: violations.length === 0,
-    min_radius_required_ft: minRadiusRequiredFt,
-    min_radius_actual_ft: minRadiusActualFt === Infinity ? 0 : minRadiusActualFt,
+    min_radius_required_m: minRadiusRequiredM,
+    min_radius_actual_m: minRadiusActualM === Infinity ? 0 : minRadiusActualM,
     violations
   };
 }
@@ -250,34 +256,31 @@ export function validateBoreShotRadius(
  */
 export function validateBoreShotDepth(
   coordinates: Coordinate[],
-  minDepthRequiredFt: number
+  minDepthRequiredM: number
 ): DepthCheck {
   const violations: DepthCheck['violations'] = [];
-  let minDepthActualFt = Infinity;
-  
-  const minDepthMeters = minDepthRequiredFt * FEET_TO_METERS;
+  let minDepthActualM = Infinity;
   
   for (let i = 0; i < coordinates.length; i++) {
     const depth = coordinates[i].z || 0;
-    const depthFt = depth * METERS_TO_FEET; // Assumindo coordenadas em metros
     
-    if (depthFt < minDepthActualFt) {
-      minDepthActualFt = depthFt;
+    if (depth < minDepthActualM) {
+      minDepthActualM = depth;
     }
     
-    if (depth < minDepthMeters) {
+    if (depth < minDepthRequiredM) {
       violations.push({
         point_index: i,
-        actual_depth_ft: depthFt,
-        required_depth_ft: minDepthRequiredFt
+        actual_depth_m: depth,
+        required_depth_m: minDepthRequiredM
       });
     }
   }
   
   return {
     passed: violations.length === 0,
-    min_depth_required_ft: minDepthRequiredFt,
-    min_depth_actual_ft: minDepthActualFt === Infinity ? 0 : minDepthActualFt,
+    min_depth_required_m: minDepthRequiredM,
+    min_depth_actual_m: minDepthActualM === Infinity ? 0 : minDepthActualM,
     violations
   };
 }
@@ -299,50 +302,50 @@ export function calculateBoreShotLength(coordinates: Coordinate[]): number {
 export function calculateHydroExcavationVolume(
   subtype: 'trench' | 'hole' | 'potholing',
   coordinates: Coordinate[],
-  section: { shape: 'circular' | 'rectangular'; diameter_ft?: number; width_ft?: number; length_ft?: number },
-  depth_ft: number,
+  section: { shape: 'circular' | 'rectangular'; diameter_m?: number; width_m?: number; length_m?: number },
+  depth_m: number,
   efficiency_ratio?: number
 ): number {
-  let volumeCubicFeet = 0;
+  let volumeCubicMeters = 0;
   
   if (subtype === 'trench') {
-    const lengthFt = calculatePolylineLength(coordinates) * METERS_TO_FEET;
+    const lengthM = calculatePolylineLength(coordinates);
     
     if (section.shape === 'circular') {
-      const radiusFt = (section.diameter_ft || 0) / 2;
-      volumeCubicFeet = Math.PI * radiusFt * radiusFt * lengthFt;
+      const radiusM = (section.diameter_m || 0) / 2;
+      volumeCubicMeters = Math.PI * radiusM * radiusM * lengthM;
     } else {
-      volumeCubicFeet = (section.width_ft || 0) * (section.length_ft || 0) * lengthFt;
+      volumeCubicMeters = (section.width_m || 0) * (section.length_m || 0) * lengthM;
     }
   } else if (subtype === 'hole') {
     if (section.shape === 'circular') {
-      const radiusFt = (section.diameter_ft || 0) / 2;
-      volumeCubicFeet = Math.PI * radiusFt * radiusFt * depth_ft;
+      const radiusM = (section.diameter_m || 0) / 2;
+      volumeCubicMeters = Math.PI * radiusM * radiusM * depth_m;
     } else {
-      volumeCubicFeet = (section.width_ft || 0) * (section.length_ft || 0) * depth_ft;
+      volumeCubicMeters = (section.width_m || 0) * (section.length_m || 0) * depth_m;
     }
   } else if (subtype === 'potholing') {
     // Múltiplos pontos com profundidade média
-    const avgDepth = depth_ft;
+    const avgDepth = depth_m;
     const pointCount = coordinates.length;
     
     if (section.shape === 'circular') {
-      const radiusFt = (section.diameter_ft || 0) / 2;
-      const volumePerHole = Math.PI * radiusFt * radiusFt * avgDepth;
-      volumeCubicFeet = volumePerHole * pointCount;
+      const radiusM = (section.diameter_m || 0) / 2;
+      const volumePerHole = Math.PI * radiusM * radiusM * avgDepth;
+      volumeCubicMeters = volumePerHole * pointCount;
     } else {
-      const volumePerHole = (section.width_ft || 0) * (section.length_ft || 0) * avgDepth;
-      volumeCubicFeet = volumePerHole * pointCount;
+      const volumePerHole = (section.width_m || 0) * (section.length_m || 0) * avgDepth;
+      volumeCubicMeters = volumePerHole * pointCount;
     }
   }
   
   // Aplicar eficiência se fornecida
   if (efficiency_ratio !== undefined) {
-    volumeCubicFeet = volumeCubicFeet * efficiency_ratio;
+    volumeCubicMeters = volumeCubicMeters * efficiency_ratio;
   }
   
-  // Converter para jardas cúbicas
-  return volumeCubicFeet * CUBIC_FEET_TO_CUBIC_YARDS;
+  // Retornar em metros cúbicos
+  return volumeCubicMeters;
 }
 
 // ============================================================================
@@ -360,14 +363,14 @@ export function calculateConduitLength(coordinates: Coordinate[]): number {
  * Calcular volume interno do conduto
  */
 export function calculateConduitInternalVolume(
-  nominalDiameterIn: number,
-  lengthFt: number
+  nominalDiameterMm: number,
+  lengthM: number
 ): number {
-  // Converter polegadas para pés
-  const radiusFt = (nominalDiameterIn / 2) * (1 / 12);
-  const volumeCubicFeet = Math.PI * radiusFt * radiusFt * lengthFt;
-  // Converter para galões
-  return volumeCubicFeet / GALLONS_TO_CUBIC_FEET;
+  // Converter milímetros para metros
+  const radiusM = (nominalDiameterMm / 2) / 1000;
+  const volumeCubicMeters = Math.PI * radiusM * radiusM * lengthM;
+  // Retornar em metros cúbicos
+  return volumeCubicMeters;
 }
 
 /**
@@ -375,28 +378,28 @@ export function calculateConduitInternalVolume(
  */
 export function estimateConduitWeight(
   material: string,
-  outerDiameterIn: number,
-  wallThicknessIn: number,
-  lengthFt: number
+  outerDiameterMm: number,
+  wallThicknessMm: number,
+  lengthM: number
 ): number {
-  // Densidades aproximadas (lb/ft³)
+  // Densidades aproximadas (kg/m³)
   const densities: Record<string, number> = {
-    'PVC': 90,
-    'HDPE': 59,
-    'Steel': 490,
-    'Aluminum': 169,
-    'Fiber Optic': 100,
-    'Copper': 559
+    'PVC': 1440,
+    'HDPE': 950,
+    'Steel': 7850,
+    'Aluminum': 2700,
+    'Fiber Optic': 1600,
+    'Copper': 8960
   };
   
-  const density = densities[material] || 100;
+  const density = densities[material] || 1600;
   
-  // Volume do material (cilindro externo - cilindro interno)
-  const outerRadiusFt = (outerDiameterIn / 2) * (1 / 12);
-  const innerRadiusFt = ((outerDiameterIn - 2 * wallThicknessIn) / 2) * (1 / 12);
-  const volumeCubicFeet = Math.PI * (outerRadiusFt * outerRadiusFt - innerRadiusFt * innerRadiusFt) * lengthFt;
+  // Volume do material (cilindro externo - cilindro interno) em metros
+  const outerRadiusM = (outerDiameterMm / 2) / 1000;
+  const innerRadiusM = ((outerDiameterMm - 2 * wallThicknessMm) / 2) / 1000;
+  const volumeCubicMeters = Math.PI * (outerRadiusM * outerRadiusM - innerRadiusM * innerRadiusM) * lengthM;
   
-  return volumeCubicFeet * density;
+  return volumeCubicMeters * density;
 }
 
 // ============================================================================
@@ -408,18 +411,18 @@ export function estimateConduitWeight(
  */
 export function calculateVaultExcavationVolume(
   shape: 'rectangular' | 'circular',
-  dimensions: { length_ft?: number; width_ft?: number; diameter_ft?: number; depth_ft: number }
+  dimensions: { length_m?: number; width_m?: number; diameter_m?: number; depth_m: number }
 ): number {
-  let volumeCubicFeet = 0;
+  let volumeCubicMeters = 0;
   
   if (shape === 'circular') {
-    const radiusFt = (dimensions.diameter_ft || 0) / 2;
-    volumeCubicFeet = Math.PI * radiusFt * radiusFt * dimensions.depth_ft;
+    const radiusM = (dimensions.diameter_m || 0) / 2;
+    volumeCubicMeters = Math.PI * radiusM * radiusM * dimensions.depth_m;
   } else {
-    volumeCubicFeet = (dimensions.length_ft || 0) * (dimensions.width_ft || 0) * dimensions.depth_ft;
+    volumeCubicMeters = (dimensions.length_m || 0) * (dimensions.width_m || 0) * dimensions.depth_m;
   }
   
-  return volumeCubicFeet * CUBIC_FEET_TO_CUBIC_YARDS;
+  return volumeCubicMeters;
 }
 
 /**
@@ -516,15 +519,12 @@ export function validatePolygon(coordinates: Coordinate[]): {
  * Calcular volume a partir de área e profundidade
  */
 export function calculateVolumeFromArea(
-  areaSqft: number,
-  depthFt: number
-): { volume_cy: number; volume_m3: number } {
-  const volumeCubicFeet = areaSqft * depthFt;
-  const volumeCy = volumeCubicFeet * CUBIC_FEET_TO_CUBIC_YARDS;
-  const volumeM3 = volumeCy / CUBIC_METERS_TO_CUBIC_YARDS;
+  areaM2: number,
+  depthM: number
+): { volume_m3: number } {
+  const volumeM3 = areaM2 * depthM;
   
   return {
-    volume_cy: volumeCy,
     volume_m3: volumeM3
   };
 }

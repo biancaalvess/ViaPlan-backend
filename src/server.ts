@@ -20,6 +20,7 @@ import takeoffRoutes from './routes/takeoffRoutes';
 import quickTakeoffRoutes from './routes/quickTakeoffRoutes';
 import uploadRoutes from './routes/uploadRoutes';
 import measurementRoutes from './routes/measurementRoutes';
+import civilMeasurementRoutes from './routes/civilMeasurementRoutes';
 import projectRoutes from './routes/projectRoutes';
 import calculationRoutes from './routes/calculationRoutes';
 
@@ -157,6 +158,7 @@ const initializeRoutes = async () => {
     registerRoute('/api/quick-takeoff', quickTakeoffRoutes);
     registerRoute('/api/upload', uploadRoutes);
     registerRoute('/api/v1/measurements', measurementRoutes);
+    registerRoute('/api/v1/civil-measurements', civilMeasurementRoutes);
     registerRoute('/api/v1/projects', projectRoutes);
     registerRoute('/api/v1/calculations', calculationRoutes);
 

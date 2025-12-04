@@ -18,10 +18,10 @@ const scaleSchema = Joi.string().pattern(/^\d+:\d+$/).required()
     'string.pattern.base': 'Escala deve estar no formato "1:100"'
   });
 
-// Schema para unidades
-const unitSchema = Joi.string().valid('meters', 'feet', 'inches', 'kilometers', 'miles');
-const areaUnitSchema = Joi.string().valid('square_meters', 'square_feet', 'hectares', 'acres');
-const volumeUnitSchema = Joi.string().valid('cubic_meters', 'cubic_feet', 'liters', 'gallons');
+// Schema para unidades (padrão brasileiro - apenas unidades básicas)
+const unitSchema = Joi.string().valid('meters').default('meters');
+const areaUnitSchema = Joi.string().valid('square_meters').default('square_meters');
+const volumeUnitSchema = Joi.string().valid('cubic_meters').default('cubic_meters');
 
 // Schemas específicos para cada tipo de medição
 export const measurementSchemas = {

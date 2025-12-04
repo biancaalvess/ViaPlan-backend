@@ -17,9 +17,9 @@ export type MeasurementType =
   | 'area'
   | 'note';
 
-export type Unit = 'meters' | 'feet' | 'inches' | 'millimeters';
-export type AreaUnit = 'square_meters' | 'square_feet';
-export type VolumeUnit = 'cubic_meters' | 'cubic_yards' | 'cubic_feet';
+export type Unit = 'meters';
+export type AreaUnit = 'square_meters';
+export type VolumeUnit = 'cubic_meters';
 
 export interface Coordinate {
   x: number;
@@ -63,21 +63,21 @@ export interface WidthDepth {
   type: 'constant' | 'variable';
   value?: number; // Para constante
   values?: number[]; // Para variável (um por segmento)
-  unit: 'm' | 'ft';
+  unit: 'm';
 }
 
 export interface AsphaltRemoval {
   width: number;
   thickness: number;
   volume_m3: number;
-  unit: 'm' | 'ft';
+  unit: 'm';
 }
 
 export interface ConcreteRemoval {
   width: number;
   thickness: number;
   volume_m3: number;
-  unit: 'm' | 'ft';
+  unit: 'm';
 }
 
 export interface Backfill {
@@ -86,7 +86,7 @@ export interface Backfill {
   width: number;
   depth: number;
   volume_m3: number;
-  unit: 'm' | 'ft';
+  unit: 'm';
 }
 
 export interface CrossSection {
@@ -117,33 +117,33 @@ export interface TrenchMeasurement extends BaseMeasurement {
 export type ConduitMaterial = 'PVC' | 'HDPE' | 'Steel' | 'Aluminum' | 'Fiber Optic' | 'Copper' | 'Other';
 
 export interface ConduitSpec {
-  size_in: string; // Tamanho nominal (ex: "4")
+  size_mm: string; // Tamanho nominal em milímetros (ex: "100")
   count: number;
   material: ConduitMaterial;
   sdr?: string; // Ex: "11", "17"
-  outer_diameter_in: number;
-  min_curvature_radius_ft: number;
+  outer_diameter_mm: number;
+  min_curvature_radius_m: number;
 }
 
 export interface RadiusCheck {
   passed: boolean;
-  min_radius_required_ft: number;
-  min_radius_actual_ft: number;
+  min_radius_required_m: number;
+  min_radius_actual_m: number;
   violations: Array<{
     segment_index: number;
-    actual_radius_ft: number;
-    required_radius_ft: number;
+    actual_radius_m: number;
+    required_radius_m: number;
   }>;
 }
 
 export interface DepthCheck {
   passed: boolean;
-  min_depth_required_ft: number;
-  min_depth_actual_ft: number;
+  min_depth_required_m: number;
+  min_depth_actual_m: number;
   violations: Array<{
     point_index: number;
-    actual_depth_ft: number;
-    required_depth_ft: number;
+    actual_depth_m: number;
+    required_depth_m: number;
   }>;
 }
 
@@ -158,10 +158,10 @@ export interface BoreShotMeasurement extends BaseMeasurement {
   conduits: ConduitSpec[];
   entry_angle_degrees: number; // 0-90°
   exit_angle_degrees: number; // 0-90°
-  min_depth_guaranteed_ft: number;
-  drill_diameter_in: number;
-  backreamer_diameter_in: number;
-  length_ft: number; // Comprimento perfurado
+  min_depth_guaranteed_m: number;
+  drill_diameter_mm: number;
+  backreamer_diameter_mm: number;
+  length_m: number; // Comprimento perfurado
   validation: BoreShotValidation;
 }
 
@@ -174,13 +174,13 @@ export type SurfaceType = 'asphalt' | 'concrete' | 'dirt';
 
 export interface HydroSection {
   shape: 'circular' | 'rectangular';
-  diameter_ft?: number; // Para circular
-  width_ft?: number; // Para retangular
-  length_ft?: number; // Para retangular
+  diameter_m?: number; // Para circular
+  width_m?: number; // Para retangular
+  length_m?: number; // Para retangular
 }
 
 export interface HydroConduit {
-  size_in: string;
+  size_mm: string;
   count: number;
   material: ConduitMaterial;
 }
@@ -190,8 +190,8 @@ export interface HydroExcavationMeasurement extends BaseMeasurement {
   subtype: HydroExcavationSubtype;
   coordinates: Coordinate[]; // Reta ou polilinha (trench) ou ponto único (hole)
   section: HydroSection;
-  depth_ft: number;
-  volume_removed_cy: number; // Volume removido em jardas cúbicas
+  depth_m: number;
+  volume_removed_m3: number; // Volume removido em metros cúbicos
   efficiency_ratio?: number; // 0-1 (perda por colapso)
   surface_type?: SurfaceType;
   include_restoration?: boolean;
@@ -206,7 +206,7 @@ export type InstallationMethod = 'trench' | 'hdd' | 'direct_bury';
 
 export interface ConduitConnection {
   type: 'elbow' | 'tee' | 'reducer' | 'valve' | 'joint';
-  position_ft: number; // Posição ao longo do trajeto
+  position_m: number; // Posição ao longo do trajeto
   specifications: Record<string, unknown>;
 }
 
@@ -220,19 +220,19 @@ export interface ConduitMeasurement extends BaseMeasurement {
   type: 'conduit';
   coordinates: Coordinate[]; // Polilinha 3D (x, y, z)
   conduits: Array<{
-    size_in: string;
+    size_mm: string;
     count: number;
     material: ConduitMaterial;
     sdr?: string;
-    nominal_diameter_in: number;
-    outer_diameter_in: number;
-    wall_thickness_in: number;
-    length_ft: number;
+    nominal_diameter_mm: number;
+    outer_diameter_mm: number;
+    wall_thickness_mm: number;
+    length_m: number;
   }>;
   connections?: ConduitConnection[];
-  total_length_ft: number;
-  internal_volume_gal?: number; // Volume interno em galões
-  estimated_weight_lb?: number; // Peso estimado em libras
+  total_length_m: number;
+  internal_volume_m3?: number; // Volume interno em metros cúbicos
+  estimated_weight_kg?: number; // Peso estimado em quilogramas
   installation_method?: InstallationMethod;
   compatibility_check?: CompatibilityCheck;
 }
@@ -245,26 +245,26 @@ export type VaultType = 'poço_visita' | 'caixa_passagem' | 'buraco_mao' | 'câm
 export type VaultShape = 'rectangular' | 'circular';
 
 export interface VaultDimensions {
-  length_ft?: number; // Para retangular
-  width_ft?: number; // Para retangular
-  diameter_ft?: number; // Para circular
-  depth_ft: number;
+  length_m?: number; // Para retangular
+  width_m?: number; // Para retangular
+  diameter_m?: number; // Para circular
+  depth_m: number;
 }
 
 export interface VaultVolumes {
-  excavation_cy: number;
-  asphalt_removal_cy?: number;
-  concrete_removal_cy?: number;
-  asphalt_restoration_cy?: number;
-  concrete_restoration_cy?: number;
-  backfill_cy: number;
+  excavation_m3: number;
+  asphalt_removal_m3?: number;
+  concrete_removal_m3?: number;
+  asphalt_restoration_m3?: number;
+  concrete_restoration_m3?: number;
+  backfill_m3: number;
   backfill_type?: BackfillType;
 }
 
 export interface HoleSize {
-  length_ft: number;
-  width_ft: number;
-  depth_ft: number;
+  length_m: number;
+  width_m: number;
+  depth_m: number;
 }
 
 export interface VaultMeasurement extends BaseMeasurement {
@@ -288,13 +288,10 @@ export interface VaultMeasurement extends BaseMeasurement {
 export interface AreaMeasurement extends BaseMeasurement {
   type: 'area';
   coordinates: Coordinate[]; // Polígono fechado (primeiro = último, mínimo 3 pontos)
-  area_sqft: number;
-  area_sqm: number;
-  perimeter_ft: number;
+  area_m2: number;
   perimeter_m: number;
-  depth_ft?: number; // Opcional: para calcular volume
-  volume_cy?: number; // Calculado se depth_ft fornecido
-  volume_m3?: number; // Calculado se depth_ft fornecido
+  depth_m?: number; // Opcional: para calcular volume
+  volume_m3?: number; // Calculado se depth_m fornecido
 }
 
 // ============================================================================
@@ -366,28 +363,28 @@ export interface MeasurementSummary {
   totals: {
     trench?: {
       count: number;
-      total_length_ft: number;
-      total_volume_cy: number;
+      total_length_m: number;
+      total_volume_m3: number;
     };
     conduit?: {
       count: number;
-      total_length_ft: number;
+      total_length_m: number;
     };
     vault?: {
       count: number;
-      total_volume_cy: number;
+      total_volume_m3: number;
     };
     area?: {
       count: number;
-      total_area_sqft: number;
+      total_area_m2: number;
     };
     'bore-shot'?: {
       count: number;
-      total_length_ft: number;
+      total_length_m: number;
     };
     'hydro-excavation'?: {
       count: number;
-      total_volume_cy: number;
+      total_volume_m3: number;
     };
   };
   generated_at: string; // ISO8601

@@ -147,6 +147,10 @@ export class MeasurementService {
           depthDefault
         );
         
+        // Validar valores para evitar NaN ou valores inválidos
+        const validLength = isFinite(length) && length >= 0 ? length : 0;
+        const validVolume = isFinite(volume) && volume >= 0 ? volume : 0;
+        
         return {
           id: '',
           type: 'trench',
@@ -156,8 +160,8 @@ export class MeasurementService {
           width: data.width || { type: 'constant', value: 0.6, unit: 'm' },
           depth: data.depth || { type: 'constant', value: 0.9, unit: 'm' },
           soil_type: data.soil_type,
-          length,
-          volume_m3: volume,
+          length: validLength, // Sempre em metros
+          volume_m3: validVolume, // Sempre em metros cúbicos
           asphalt_removal: data.asphalt_removal,
           concrete_removal: data.concrete_removal,
           backfill: data.backfill,
@@ -174,8 +178,8 @@ export class MeasurementService {
         }
         
         const length = calculateBoreShotLength(data.coordinates);
-        const minRadius = data.conduits?.[0]?.min_curvature_radius_ft || 150;
-        const minDepth = data.min_depth_guaranteed_ft || 8;
+        const minRadius = data.conduits?.[0]?.min_curvature_radius_m || 45.72; // 150 ft = 45.72 m
+        const minDepth = data.min_depth_guaranteed_m || 2.44; // 8 ft = 2.44 m
         
         const radiusCheck = validateBoreShotRadius(data.coordinates, minRadius);
         const depthCheck = validateBoreShotDepth(data.coordinates, minDepth);
@@ -189,10 +193,10 @@ export class MeasurementService {
           conduits: data.conduits || [],
           entry_angle_degrees: data.entry_angle_degrees || 15,
           exit_angle_degrees: data.exit_angle_degrees || 15,
-          min_depth_guaranteed_ft: minDepth,
-          drill_diameter_in: data.drill_diameter_in || 6,
-          backreamer_diameter_in: data.backreamer_diameter_in || 7.2,
-          length_ft: length,
+          min_depth_guaranteed_m: minDepth,
+          drill_diameter_mm: data.drill_diameter_mm || 152.4, // 6 in = 152.4 mm
+          backreamer_diameter_mm: data.backreamer_diameter_mm || 182.88, // 7.2 in = 182.88 mm
+          length_m: length,
           validation: {
             radius_check: radiusCheck,
             depth_check: depthCheck
@@ -211,8 +215,8 @@ export class MeasurementService {
         const volume = calculateHydroExcavationVolume(
           data.subtype || 'trench',
           data.coordinates,
-          data.section || { shape: 'circular', diameter_ft: 2 },
-          data.depth_ft || 3,
+          data.section || { shape: 'circular', diameter_m: 0.61 }, // 2 ft = 0.61 m
+          data.depth_m || 0.91, // 3 ft = 0.91 m
           data.efficiency_ratio
         );
         
@@ -223,9 +227,9 @@ export class MeasurementService {
           label: data.label || '',
           subtype: data.subtype || 'trench',
           coordinates: data.coordinates,
-          section: data.section || { shape: 'circular', diameter_ft: 2 },
-          depth_ft: data.depth_ft || 3,
-          volume_removed_cy: volume,
+          section: data.section || { shape: 'circular', diameter_m: 0.61 },
+          depth_m: data.depth_m || 0.91,
+          volume_removed_m3: volume,
           efficiency_ratio: data.efficiency_ratio,
           surface_type: data.surface_type,
           include_restoration: data.include_restoration,
@@ -250,13 +254,13 @@ export class MeasurementService {
         if (data.conduits && data.conduits.length > 0) {
           const conduit = data.conduits[0];
           internalVolume = calculateConduitInternalVolume(
-            conduit.nominal_diameter_in,
+            conduit.nominal_diameter_mm,
             length
           );
           estimatedWeight = estimateConduitWeight(
             conduit.material,
-            conduit.outer_diameter_in,
-            conduit.wall_thickness_in,
+            conduit.outer_diameter_mm,
+            conduit.wall_thickness_mm,
             length
           );
         }
@@ -269,9 +273,9 @@ export class MeasurementService {
           coordinates: data.coordinates,
           conduits: data.conduits || [],
           connections: data.connections,
-          total_length_ft: length,
-          internal_volume_gal: internalVolume,
-          estimated_weight_lb: estimatedWeight,
+          total_length_m: length,
+          internal_volume_m3: internalVolume,
+          estimated_weight_kg: estimatedWeight,
           installation_method: data.installation_method,
           compatibility_check: data.compatibility_check,
           created_at: now,
@@ -287,7 +291,7 @@ export class MeasurementService {
         
         calculateVaultExcavationVolume(
           data.shape || 'rectangular',
-          data.dimensions || { length_ft: 4, width_ft: 4, depth_ft: 6 }
+          data.dimensions || { length_m: 1.22, width_m: 1.22, depth_m: 1.83 } // 4 ft = 1.22 m, 6 ft = 1.83 m
         );
         
         return {
@@ -298,7 +302,7 @@ export class MeasurementService {
           coordinates: data.coordinates,
           vault_type: data.vault_type || 'câmara',
           shape: data.shape || 'rectangular',
-          dimensions: data.dimensions || { length_ft: 4, width_ft: 4, depth_ft: 6 },
+          dimensions: data.dimensions || { length_m: 1.22, width_m: 1.22, depth_m: 1.83 },
           material: data.material,
           class: data.class,
           quantity: data.quantity || 1,
@@ -322,17 +326,13 @@ export class MeasurementService {
           throw new Error(`Polígono inválido: ${validation.errors.join(', ')}`);
         }
         
-        const areaSqm = calculatePolygonArea(data.coordinates);
-        const areaSqft = areaSqm * 10.764; // m² para ft²
+        const areaM2 = calculatePolygonArea(data.coordinates);
         const perimeterM = calculatePolygonPerimeter(data.coordinates);
-        const perimeterFt = perimeterM * 3.28084; // m para ft
         
-        let volumeCy: number | undefined;
         let volumeM3: number | undefined;
         
-        if (data.depth_ft) {
-          const volumes = calculateVolumeFromArea(areaSqft, data.depth_ft);
-          volumeCy = volumes.volume_cy;
+        if (data.depth_m) {
+          const volumes = calculateVolumeFromArea(areaM2, data.depth_m);
           volumeM3 = volumes.volume_m3;
         }
         
@@ -342,12 +342,9 @@ export class MeasurementService {
           project_id: data.project_id || '',
           label: data.label || '',
           coordinates: data.coordinates,
-          area_sqft: areaSqft,
-          area_sqm: areaSqm,
-          perimeter_ft: perimeterFt,
+          area_m2: areaM2,
           perimeter_m: perimeterM,
-          depth_ft: data.depth_ft,
-          volume_cy: volumeCy,
+          depth_m: data.depth_m,
           volume_m3: volumeM3,
           created_at: now,
           updated_at: now
@@ -593,48 +590,51 @@ export class MeasurementService {
       if (type === 'trench') {
         const data = measurement.data as TrenchMeasurement;
         if (!totals.trench) {
-          totals.trench = { count: 0, total_length_ft: 0, total_volume_cy: 0 };
+          totals.trench = { count: 0, total_length_m: 0, total_volume_m3: 0 };
         }
         totals.trench.count++;
-        totals.trench.total_length_ft += data.length * 3.28084; // m para ft
-        totals.trench.total_volume_cy += data.volume_m3 * 1.30795; // m³ para CY
+        // Garantir que os valores são válidos e estão em metros
+        const length = isFinite(data.length) && data.length >= 0 ? data.length : 0;
+        const volume = isFinite(data.volume_m3) && data.volume_m3 >= 0 ? data.volume_m3 : 0;
+        totals.trench.total_length_m += length;
+        totals.trench.total_volume_m3 += volume;
       } else if (type === 'conduit') {
         const data = measurement.data as ConduitMeasurement;
         if (!totals.conduit) {
-          totals.conduit = { count: 0, total_length_ft: 0 };
+          totals.conduit = { count: 0, total_length_m: 0 };
         }
         totals.conduit.count++;
-        totals.conduit.total_length_ft += data.total_length_ft;
+        totals.conduit.total_length_m += data.total_length_m;
       } else if (type === 'vault') {
         const data = measurement.data as VaultMeasurement;
         if (!totals.vault) {
-          totals.vault = { count: 0, total_volume_cy: 0 };
+          totals.vault = { count: 0, total_volume_m3: 0 };
         }
         totals.vault.count += data.quantity || 1;
         if (data.volumes) {
-          totals.vault.total_volume_cy += data.volumes.excavation_cy;
+          totals.vault.total_volume_m3 += data.volumes.excavation_m3;
         }
       } else if (type === 'area') {
         const data = measurement.data as AreaMeasurement;
         if (!totals.area) {
-          totals.area = { count: 0, total_area_sqft: 0 };
+          totals.area = { count: 0, total_area_m2: 0 };
         }
         totals.area.count++;
-        totals.area.total_area_sqft += data.area_sqft;
+        totals.area.total_area_m2 += data.area_m2;
       } else if (type === 'bore-shot') {
         const data = measurement.data as BoreShotMeasurement;
         if (!totals['bore-shot']) {
-          totals['bore-shot'] = { count: 0, total_length_ft: 0 };
+          totals['bore-shot'] = { count: 0, total_length_m: 0 };
         }
         totals['bore-shot'].count++;
-        totals['bore-shot'].total_length_ft += data.length_ft;
+        totals['bore-shot'].total_length_m += data.length_m;
       } else if (type === 'hydro-excavation') {
         const data = measurement.data as HydroExcavationMeasurement;
         if (!totals['hydro-excavation']) {
-          totals['hydro-excavation'] = { count: 0, total_volume_cy: 0 };
+          totals['hydro-excavation'] = { count: 0, total_volume_m3: 0 };
         }
         totals['hydro-excavation'].count++;
-        totals['hydro-excavation'].total_volume_cy += data.volume_removed_cy;
+        totals['hydro-excavation'].total_volume_m3 += data.volume_removed_m3;
       }
     }
     
