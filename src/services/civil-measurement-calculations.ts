@@ -32,6 +32,202 @@ function canvasToReal(distance: number, scale: string): number {
 }
 
 // ============================================================================
+// CÁLCULOS ESTRUTURAIS AVANÇADOS
+// Baseado em: Cálculo Aplicado às Engenharias - Robson Rodrigues
+// ============================================================================
+
+/**
+ * Calcular momento de inércia para seção retangular
+ * I = (b × h³) / 12
+ */
+export function calculateMomentOfInertiaRectangular(
+  width_m: number,
+  height_m: number
+): number {
+  return (width_m * Math.pow(height_m, 3)) / 12;
+}
+
+/**
+ * Calcular momento de inércia para seção circular
+ * I = (π × d⁴) / 64
+ */
+export function calculateMomentOfInertiaCircular(
+  diameter_m: number
+): number {
+  return (Math.PI * Math.pow(diameter_m, 4)) / 64;
+}
+
+/**
+ * Calcular deflexão máxima de viga simplesmente apoiada com carga pontual no centro
+ * v_max = (P × L³) / (48 × E × I)
+ * Onde:
+ * - P: carga pontual (N)
+ * - L: comprimento da viga (m)
+ * - E: módulo de elasticidade (Pa = N/m²)
+ * - I: momento de inércia (m⁴)
+ * 
+ * Retorna deflexão em metros
+ */
+export function calculateBeamDeflectionMax(
+  load_N: number, // Carga em Newtons
+  length_m: number, // Comprimento da viga em metros
+  elasticModulus_Pa: number, // Módulo de elasticidade em Pascal (ex: 200000 MPa = 2×10¹¹ Pa)
+  momentOfInertia_m4: number // Momento de inércia em m⁴
+): number {
+  if (length_m <= 0 || elasticModulus_Pa <= 0 || momentOfInertia_m4 <= 0) {
+    return 0;
+  }
+  return (load_N * Math.pow(length_m, 3)) / (48 * elasticModulus_Pa * momentOfInertia_m4);
+}
+
+/**
+ * Calcular deslocamento angular máximo de viga simplesmente apoiada com carga pontual no centro
+ * θ_max = (P × L²) / (16 × E × I)
+ * Retorna em radianos
+ */
+export function calculateBeamAngularDisplacementMax(
+  load_N: number,
+  length_m: number,
+  elasticModulus_Pa: number,
+  momentOfInertia_m4: number
+): number {
+  if (length_m <= 0 || elasticModulus_Pa <= 0 || momentOfInertia_m4 <= 0) {
+    return 0;
+  }
+  return (load_N * Math.pow(length_m, 2)) / (16 * elasticModulus_Pa * momentOfInertia_m4);
+}
+
+/**
+ * Calcular momento fletor máximo para viga simplesmente apoiada com carga pontual no centro
+ * M_max = (P × L) / 4
+ * Retorna em N.m
+ */
+export function calculateBeamBendingMomentMax(
+  load_N: number,
+  length_m: number
+): number {
+  return (load_N * length_m) / 4;
+}
+
+/**
+ * Calcular força cortante máxima para viga simplesmente apoiada com carga pontual no centro
+ * V_max = P / 2
+ * Retorna em N
+ */
+export function calculateBeamShearForceMax(
+  load_N: number
+): number {
+  return load_N / 2;
+}
+
+/**
+ * Otimizar dimensões de viga retangular para máxima resistência
+ * Para viga retangular: S = k × w × d² (onde k é constante)
+ * Com restrição: w² + d² = D² (diâmetro do tronco)
+ * 
+ * Retorna dimensões otimizadas: { width_m, height_m }
+ */
+export function optimizeBeamDimensionsForMaxResistance(
+  diameter_m: number, // Diâmetro do tronco/material disponível
+  constant: number = 1 // Constante k (padrão: 1)
+): { width_m: number; height_m: number; maxResistance: number } {
+  // Derivando e igualando a zero, encontramos:
+  // d = D × √(2/3)
+  // w = D × √(1/3)
+  const height_m = diameter_m * Math.sqrt(2 / 3);
+  const width_m = diameter_m * Math.sqrt(1 / 3);
+  const maxResistance = constant * width_m * Math.pow(height_m, 2);
+  
+  return {
+    width_m: round(width_m),
+    height_m: round(height_m),
+    maxResistance: round(maxResistance)
+  };
+}
+
+/**
+ * Otimizar dimensões de área retangular para mínimo perímetro com área fixa
+ * Para área fixa A = x × y, encontrar x e y que minimizam P = 2x + y (3 lados)
+ * ou P = 2x + 2y (4 lados)
+ * 
+ * Retorna dimensões otimizadas
+ */
+export function optimizeRectangularDimensionsForMinPerimeter(
+  area_m2: number,
+  sides: 3 | 4 = 4 // 3 lados (um lado livre) ou 4 lados (cercado)
+): { length_m: number; width_m: number; minPerimeter_m: number } {
+  if (sides === 3) {
+    // P = 2x + y, com A = x × y, então y = A/x
+    // P = 2x + A/x
+    // Derivando: dP/dx = 2 - A/x² = 0
+    // x = √(A/2)
+    const length_m = Math.sqrt(area_m2 / 2);
+    const width_m = area_m2 / length_m;
+    const minPerimeter_m = 2 * length_m + width_m;
+    
+    return {
+      length_m: round(length_m),
+      width_m: round(width_m),
+      minPerimeter_m: round(minPerimeter_m)
+    };
+  } else {
+    // P = 2x + 2y, com A = x × y
+    // Para quadrado: x = y = √A
+    const side_m = Math.sqrt(area_m2);
+    
+    return {
+      length_m: round(side_m),
+      width_m: round(side_m),
+      minPerimeter_m: round(4 * side_m)
+    };
+  }
+}
+
+/**
+ * Otimizar dimensões de área retangular para máxima área com perímetro fixo
+ * Para perímetro fixo P = 2x + 2y, encontrar x e y que maximizam A = x × y
+ * 
+ * Retorna dimensões otimizadas
+ */
+export function optimizeRectangularDimensionsForMaxArea(
+  perimeter_m: number,
+  sides: 3 | 4 = 4 // 3 lados ou 4 lados
+): { length_m: number; width_m: number; maxArea_m2: number } {
+  if (sides === 3) {
+    // P = 2x + y, então y = P - 2x
+    // A = x × (P - 2x) = Px - 2x²
+    // Derivando: dA/dx = P - 4x = 0
+    // x = P/4, y = P/2
+    const length_m = perimeter_m / 4;
+    const width_m = perimeter_m / 2;
+    const maxArea_m2 = length_m * width_m;
+    
+    return {
+      length_m: round(length_m),
+      width_m: round(width_m),
+      maxArea_m2: round(maxArea_m2)
+    };
+  } else {
+    // Para quadrado: x = y = P/4
+    const side_m = perimeter_m / 4;
+    
+    return {
+      length_m: round(side_m),
+      width_m: round(side_m),
+      maxArea_m2: round(side_m * side_m)
+    };
+  }
+}
+
+/**
+ * Função auxiliar para arredondar números
+ */
+function round(value: number, decimals: number = 6): number {
+  const factor = Math.pow(10, decimals);
+  return Math.round(value * factor) / factor;
+}
+
+// ============================================================================
 // PRESETS BRASILEIROS
 // ============================================================================
 
