@@ -5,15 +5,6 @@
 
 import {
   Coordinate,
-  LayoutMeasurement,
-  WallMeasurement,
-  AreaMeasurement,
-  OpeningMeasurement,
-  SlabMeasurement,
-  FoundationMeasurement,
-  StructureMeasurement,
-  FinishingMeasurement,
-  RoofMeasurement,
   BlockParameters,
   BrazilianPresets
 } from '../types/civil-measurement';
@@ -258,15 +249,28 @@ export function calculateWallMeasurements(
   const defaultDensity = 1500; // kg/m³
   const estimatedWeight = volume * defaultDensity;
   
-  return {
+  const result: {
+    length_m: number;
+    masonry_area_m2: number;
+    net_area_m2: number;
+    volume_m3: number;
+    estimated_blocks?: number;
+    estimated_mortar_m3?: number;
+    estimated_weight_kg?: number;
+  } = {
     length_m: length,
     masonry_area_m2: masonryArea,
     net_area_m2: netArea,
     volume_m3: volume,
-    estimated_blocks: estimatedBlocks,
     estimated_mortar_m3: estimatedMortar,
     estimated_weight_kg: estimatedWeight
   };
+  
+  if (estimatedBlocks !== undefined) {
+    result.estimated_blocks = estimatedBlocks;
+  }
+  
+  return result;
 }
 
 // ============================================================================
@@ -447,11 +451,23 @@ export function calculateStructureVolume(
   const defaultRebarRate = rebar_rate_kg_m3 || 100; // kg/m³
   const estimatedRebar = volume * defaultRebarRate;
   
-  return {
-    volume_m3: volume,
-    area_m2: area,
-    estimated_rebar_kg: estimatedRebar
+  const result: {
+    volume_m3: number;
+    area_m2?: number;
+    estimated_rebar_kg?: number;
+  } = {
+    volume_m3: volume
   };
+  
+  if (area !== undefined) {
+    result.area_m2 = area;
+  }
+  
+  if (estimatedRebar !== undefined) {
+    result.estimated_rebar_kg = estimatedRebar;
+  }
+  
+  return result;
 }
 
 // ============================================================================

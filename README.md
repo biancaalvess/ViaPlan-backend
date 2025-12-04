@@ -58,6 +58,7 @@ ViaPlan-backend/
 │   │
 │   ├── controllers/        # Controladores (lógica de negócio)
 │   │   ├── measurementController.ts
+│   │   ├── civilMeasurementController.ts
 │   │   ├── projectController.ts
 │   │   ├── quickTakeoffController.ts
 │   │   ├── takeoffController.ts
@@ -71,11 +72,14 @@ ViaPlan-backend/
 │   │   ├── rateLimit.ts
 │   │   ├── security.ts     # CORS e Helmet
 │   │   ├── upload.ts       # Configuração de uploads
-│   │   └── validation.ts   # Validação de dados
+│   │   ├── validation.ts   # Validação de dados
+│   │   ├── measurement-validation.ts
+│   │   └── civil-measurement-validation.ts
 │   │
 │   ├── routes/             # Definição de rotas
 │   │   ├── calculationRoutes.ts
 │   │   ├── measurementRoutes.ts
+│   │   ├── civilMeasurementRoutes.ts
 │   │   ├── projectRoutes.ts
 │   │   ├── quickTakeoffRoutes.ts
 │   │   ├── takeoffRoutes.ts
@@ -86,6 +90,8 @@ ViaPlan-backend/
 │   │   ├── measurement-calculations.ts
 │   │   ├── measurement-calculations-viaplan.ts
 │   │   ├── measurement-service.ts
+│   │   ├── civil-measurement-calculations.ts
+│   │   ├── civil-measurement-service.ts
 │   │   ├── plants-unified-service.ts
 │   │   ├── project-service.ts
 │   │   ├── quick-takeoff-service.ts
@@ -94,6 +100,7 @@ ViaPlan-backend/
 │   ├── types/             # Definições de tipos TypeScript
 │   │   ├── express.d.ts
 │   │   ├── measurement.ts
+│   │   ├── civil-measurement.ts
 │   │   ├── plant.ts
 │   │   └── unified.ts
 │   │
@@ -179,11 +186,11 @@ ViaPlan-backend/
 
 **Endpoint**: `POST /api/quick-takeoff/process-pdf`
 
-### 4. Sistema de Medições
+### 4. Sistema de Medições (Infraestrutura)
 
 **Localização**: `src/services/measurement-service.ts`, `src/services/measurement-calculations-viaplan.ts`
 
-**Função**: Gerencia e calcula diferentes tipos de medições de engenharia.
+**Função**: Gerencia e calcula diferentes tipos de medições de engenharia de infraestrutura.
 
 **Tipos de medições suportadas**:
 - **Trincheiras (Trench)**: Cálculo de comprimento e volume
@@ -195,11 +202,14 @@ ViaPlan-backend/
 - **Notas (Note)**: Anotações textuais
 - **Seleções (Select)**: Seleções de elementos
 
+**Unidades**: Sistema Métrico Internacional (m, m², m³)
+
 **Como funciona**:
 - Armazena medições em arquivos JSON (simulação de banco de dados)
 - Valida dados de entrada conforme tipo de medição
 - Calcula métricas automaticamente (comprimento, volume, área, etc.)
 - Suporta filtros e buscas por projeto, tipo, data, etc.
+- Validações para evitar NaN e valores inválidos
 
 **Tecnologias**: TypeScript, cálculos matemáticos, validação de dados
 
@@ -209,6 +219,49 @@ ViaPlan-backend/
 - `GET /api/v1/measurements/:id` - Obter medição específica
 - `PUT /api/v1/measurements/:id` - Atualizar medição
 - `DELETE /api/v1/measurements/:id` - Deletar medição
+
+### 4.1. Sistema de Medições Civis Prediais
+
+**Localização**: `src/services/civil-measurement-service.ts`, `src/services/civil-measurement-calculations.ts`
+
+**Função**: Sistema completo de medições técnicas para engenharia civil predial (casas e edifícios).
+
+**Tipos de medições suportadas**:
+- **Planta/Layout**: Traçado de referências, paredes e subdivisões com direção segmentada
+- **Paredes**: Cálculo de área de alvenaria, volume, blocagem estimada e argamassa
+- **Área**: Cálculo de área e perímetro de ambientes (quarto, sala, cozinha, etc.)
+- **Vãos/Aberturas**: Contabilização de portas/janelas com integração automática em paredes
+- **Lajes/Pisos**: Cálculo de área e volume de concreto com Fck e densidade
+- **Fundação**: Volumes de blocos, sapatas, vigas baldrame e radier
+- **Estrutura**: Vigas, pilares e lajes estruturais com estimativa de armadura
+- **Acabamentos**: Piso, revestimento e pintura com perdas padrão
+- **Cobertura**: Área real e projetada considerando inclinação
+- **Nota**: Anotações georreferenciadas
+
+**Unidades**: Sistema Métrico Internacional (m, m², m³)
+
+**Presets Brasileiros**:
+- Dimensões de blocos (cerâmico, concreto, tijolo baiano) com juntas de argamassa
+- Espessuras padrão (paredes externas/internas, lajes, fundação)
+- Perdas padrão (piso: 5%, revestimento: 10%, pintura: 5%)
+- Taxa de armadura (80-120 kg/m³, padrão: 100 kg/m³)
+
+**Como funciona**:
+- Cálculos isolados e independentes de UI
+- Validação de unidades métricas
+- Integração de vãos com paredes para desconto automático
+- Cálculo de blocagem considerando juntas de argamassa
+- Estimativa de argamassa (8-12% do volume)
+- Estimativa de armadura para estruturas de concreto
+
+**Tecnologias**: TypeScript, cálculos matemáticos, validação Joi
+
+**Endpoints**:
+- `POST /api/v1/civil-measurements` - Criar medição civil
+- `GET /api/v1/civil-measurements` - Listar medições (com filtros projectId e type)
+- `GET /api/v1/civil-measurements/:id` - Obter medição específica
+- `PUT /api/v1/civil-measurements/:id` - Atualizar medição
+- `DELETE /api/v1/civil-measurements/:id` - Deletar medição
 
 ### 5. Gerenciamento de Projetos
 
@@ -410,12 +463,19 @@ npm run dev
 - `GET /api/takeoff/*` - Rotas de takeoff
 - `POST /api/quick-takeoff/process-pdf` - Processamento rápido de PDF
 
-### Medições
+### Medições (Infraestrutura)
 - `POST /api/v1/measurements` - Criar medição
 - `GET /api/v1/measurements` - Listar medições (com filtros)
 - `GET /api/v1/measurements/:id` - Obter medição específica
 - `PUT /api/v1/measurements/:id` - Atualizar medição
 - `DELETE /api/v1/measurements/:id` - Deletar medição
+
+### Medições Civis Prediais
+- `POST /api/v1/civil-measurements` - Criar medição civil
+- `GET /api/v1/civil-measurements` - Listar medições (filtros: projectId, type)
+- `GET /api/v1/civil-measurements/:id` - Obter medição específica
+- `PUT /api/v1/civil-measurements/:id` - Atualizar medição
+- `DELETE /api/v1/civil-measurements/:id` - Deletar medição
 
 ### Projetos
 - `POST /api/v1/projects` - Criar projeto
@@ -489,7 +549,8 @@ npm run dev
 
 Atualmente, o projeto usa armazenamento baseado em arquivos JSON para simular um banco de dados. Os dados são armazenados em:
 
-- `data/measurements/` - Medições
+- `data/measurements/` - Medições de infraestrutura
+- `data/civil-measurements/` - Medições civis prediais
 - `data/projects/` - Projetos
 - `uploads/` - Arquivos enviados
 - `thumbnails/` - Miniaturas geradas
@@ -557,11 +618,28 @@ Email: viaplan@example.com
 
 ## Changelog
 
+### Versão 1.1.0 (2024-01-20)
+- **Migração para unidades métricas brasileiras**: Conversão completa de unidades imperiais (feet, inches, yards) para sistema métrico (m, m², m³)
+- **Novo sistema de medições civis prediais**: Implementação completa de 10 ferramentas para engenharia civil predial
+  - Planta/Layout com direção segmentada
+  - Paredes com cálculo de blocagem e argamassa
+  - Áreas de ambientes
+  - Vãos/Aberturas integrados com paredes
+  - Lajes/Pisos com Fck e densidade
+  - Fundação (blocos, sapatas, vigas, radier)
+  - Estrutura (vigas, pilares, lajes) com estimativa de armadura
+  - Acabamentos com perdas padrão
+  - Cobertura com inclinação em % ou graus
+  - Notas georreferenciadas
+- **Presets brasileiros**: Dimensões de blocos, espessuras padrão, perdas e taxas de armadura
+- **Validações aprimoradas**: Prevenção de NaN e valores inválidos em cálculos
+- **APIs CRUD completas**: Endpoints RESTful para todas as medições civis
+
 ### Versão 1.0.0
 - Implementação inicial do backend
 - Sistema de upload de plantas
 - Processamento de takeoffs
-- Sistema de medições
+- Sistema de medições de infraestrutura
 - Gerenciamento de projetos
 - Autenticação JWT
 - Documentação Swagger

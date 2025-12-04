@@ -5,7 +5,7 @@
 import { Router } from 'express';
 import { CivilMeasurementController } from '../controllers/civilMeasurementController';
 import { createCivilMeasurementSchema, updateCivilMeasurementSchema } from '../middleware/civil-measurement-validation';
-import { validate } from '../middleware/validation';
+import { validateRequest } from '../middleware/validation';
 
 const router = Router();
 const controller = new CivilMeasurementController();
@@ -42,7 +42,7 @@ const controller = new CivilMeasurementController();
  */
 router.post(
   '/',
-  validate(createCivilMeasurementSchema),
+  validateRequest(createCivilMeasurementSchema),
   controller.createMeasurement
 );
 
@@ -122,7 +122,7 @@ router.get('/', controller.listMeasurements);
  */
 router.put(
   '/:id',
-  validate(updateCivilMeasurementSchema),
+  validateRequest(updateCivilMeasurementSchema),
   controller.updateMeasurement
 );
 

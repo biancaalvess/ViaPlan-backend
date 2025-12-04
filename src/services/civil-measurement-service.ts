@@ -22,7 +22,8 @@ import {
   StructureMeasurement,
   FinishingMeasurement,
   RoofMeasurement,
-  NoteMeasurement
+  NoteMeasurement,
+  Coordinate
 } from '../types/civil-measurement';
 import {
   calculateLayoutOutput,
@@ -386,12 +387,28 @@ export class CivilMeasurementService {
         }
         
         // Converter planes para formato esperado (inclination_degrees ou inclination_percent)
-        const planes = data.geometry.planes.map(plane => ({
-          polygon: plane.polygon,
-          inclination_degrees: plane.inclination_degrees,
-          inclination_percent: plane.inclination_percent,
-          azimuth_degrees: plane.azimuth_degrees
-        }));
+        const planes = data.geometry.planes.map(plane => {
+          const result: {
+            polygon: Coordinate[];
+            inclination_degrees?: number;
+            inclination_percent?: number;
+            azimuth_degrees?: number;
+          } = {
+            polygon: plane.polygon
+          };
+          
+          if (plane.inclination_degrees !== undefined) {
+            result.inclination_degrees = plane.inclination_degrees;
+          }
+          if (plane.inclination_percent !== undefined) {
+            result.inclination_percent = plane.inclination_percent;
+          }
+          if (plane.azimuth_degrees !== undefined) {
+            result.azimuth_degrees = plane.azimuth_degrees;
+          }
+          
+          return result;
+        });
         
         const calculations = calculateRoofMeasurements(planes);
         
