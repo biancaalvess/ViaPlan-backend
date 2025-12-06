@@ -56,6 +56,12 @@ router.put(
 router.delete('/:id', controller.deleteMeasurement);
 
 /**
+ * POST /api/v1/measurements/batch-delete
+ * Deletar múltiplas medições (útil para undo)
+ */
+router.post('/batch-delete', controller.deleteMultipleMeasurements);
+
+/**
  * GET /api/v1/measurements/:id/export?format=json|csv
  * Exportar medição
  */

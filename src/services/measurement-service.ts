@@ -118,6 +118,13 @@ export class MeasurementService {
     switch (type) {
       case 'select': {
         const data = partialData as Partial<SelectMeasurement>;
+        
+        // Validar que 'select' não deve ter coordenadas ou outros dados de medição
+        // 'select' é apenas para selecionar medições existentes, não criar novas
+        if ((data as any).coordinates && (data as any).coordinates.length > 0) {
+          throw new Error('Tipo "select" não deve conter coordenadas. Use para selecionar medições existentes apenas.');
+        }
+        
         return {
           id: '',
           type: 'select',
@@ -527,6 +534,38 @@ export class MeasurementService {
       log.error('Erro ao deletar medição', error);
       return false;
     }
+  }
+
+  /**
+   * Deletar múltiplas medições (útil para undo)
+   */
+  async deleteMultipleMeasurements(ids: string[]): Promise<{
+    deleted: string[];
+    failed: string[];
+    total: number;
+  }> {
+    const result = {
+      deleted: [] as string[],
+      failed: [] as string[],
+      total: ids.length
+    };
+
+    for (const id of ids) {
+      try {
+        const deleted = await this.deleteMeasurement(id);
+        if (deleted) {
+          result.deleted.push(id);
+        } else {
+          result.failed.push(id);
+        }
+      } catch (error) {
+        log.error('Erro ao deletar medição em lote', { id, error });
+        result.failed.push(id);
+      }
+    }
+
+    log.info('Deleção em lote concluída', result);
+    return result;
   }
 
   /**

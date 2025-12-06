@@ -180,6 +180,40 @@ export class MeasurementController {
   };
 
   /**
+   * Deletar múltiplas medições (útil para undo)
+   * POST /api/v1/measurements/batch-delete
+   * Body: { ids: string[] }
+   */
+  deleteMultipleMeasurements = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { ids } = req.body;
+      
+      if (!Array.isArray(ids) || ids.length === 0) {
+        res.status(400).json({
+          success: false,
+          error: 'Lista de IDs é obrigatória e deve ser um array não vazio'
+        });
+        return;
+      }
+      
+      const result = await this.measurementService.deleteMultipleMeasurements(ids);
+      
+      res.json({
+        success: true,
+        message: `Deletadas ${result.deleted.length} de ${result.total} medições`,
+        data: result
+      });
+    } catch (error: any) {
+      console.error('Erro ao deletar múltiplas medições:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Erro interno do servidor',
+        message: error.message
+      });
+    }
+  };
+
+  /**
    * Exportar medição
    * GET /api/v1/measurements/:id/export?format=json|csv
    */
