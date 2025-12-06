@@ -57,6 +57,17 @@ export interface SelectMeasurement extends BaseMeasurement {
 // ============================================================================
 
 export type SoilType = 'argila' | 'areia' | 'rocha' | 'misturado';
+
+/**
+ * Configuração de fatores de solo para cálculos de terraplenagem
+ * Conforme normas técnicas brasileiras (Manual de Terraplenagem - Aldo Dórea Mattos)
+ */
+export interface SoilExpansionConfig {
+  soil_type: SoilType;
+  expansion_rate?: number; // Taxa de empolamento (decimal, ex: 0.25 para 25%)
+  contraction_rate?: number; // Taxa de contração (decimal, ex: 0.10 para 10%)
+  contraction_type?: 'normal' | 'alta'; // Tipo de contração para usar valores padrão
+}
 export type BackfillType = 'solo_nativo' | 'reaterro_fluido' | 'areia' | 'cascalho' | 'pedra_britada' | 'personalizado';
 
 export interface WidthDepth {
@@ -102,8 +113,11 @@ export interface TrenchMeasurement extends BaseMeasurement {
   width: WidthDepth;
   depth: WidthDepth;
   soil_type?: SoilType;
+  soil_expansion_config?: SoilExpansionConfig; // Configuração de empolamento/contração
   length: number; // Comprimento total em metros
-  volume_m3: number; // Volume de escavação
+  volume_m3: number; // Volume de escavação (corte)
+  volume_loose_m3?: number; // Volume solto (com empolamento) para transporte
+  volume_compacted_m3?: number; // Volume compactado (após contração)
   asphalt_removal?: AsphaltRemoval;
   concrete_removal?: ConcreteRemoval;
   backfill?: Backfill;

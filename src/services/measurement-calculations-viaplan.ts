@@ -260,28 +260,123 @@ export function calculateBackfill(
 }
 
 /**
+ * Fatores de empolamento (expansão) conforme literatura técnica brasileira
+ * Referência: Manual de Terraplenagem - Aldo Dórea Mattos
+ */
+export const SOIL_EXPANSION_FACTORS: Record<string, number> = {
+  'argila': 0.25,      // 25% - Solo argiloso
+  'areia': 0.15,       // 15% - Solo arenoso
+  'rocha': 0.50,       // 50% - Solo rochoso
+  'misturado': 0.25    // 25% - Solo misto (padrão)
+};
+
+/**
+ * Fatores de contração (compactação) conforme literatura técnica
+ */
+export const SOIL_CONTRACTION_FACTORS: Record<string, number> = {
+  'normal': 0.10,      // 10% - Contração média
+  'alta': 0.15         // 15% - Contração alta
+};
+
+/**
+ * Calcular volume de corte necessário para obter volume de aterro compactado
+ * Fórmula: V_corte = V_aterro / (1 - C)
+ * Onde C é a taxa de contração (ex: 10% = 0,10)
+ * 
+ * @param compactedFillVolume Volume de aterro compactado desejado (m³)
+ * @param contractionRate Taxa de contração (decimal, ex: 0.10 para 10%)
+ * @returns Volume de corte necessário (m³)
+ */
+export function calculateCutVolumeFromCompactedFill(
+  compactedFillVolume: number,
+  contractionRate: number = 0.10
+): number {
+  if (contractionRate >= 1.0 || contractionRate < 0) {
+    throw new Error('Taxa de contração deve estar entre 0 e 1 (0% a 100%)');
+  }
+  
+  return compactedFillVolume / (1 - contractionRate);
+}
+
+/**
+ * Calcular volume solto (no caminhão) a partir do volume de corte
+ * Fórmula: V_solto = V_corte × (1 + E)
+ * Onde E é a taxa de empolamento (ex: 25% = 0,25)
+ * 
+ * @param cutVolume Volume de corte (m³)
+ * @param expansionRate Taxa de empolamento (decimal, ex: 0.25 para 25%)
+ * @returns Volume solto para transporte (m³)
+ */
+export function calculateLooseVolumeFromCut(
+  cutVolume: number,
+  expansionRate: number = 0.25
+): number {
+  if (expansionRate < 0) {
+    throw new Error('Taxa de empolamento não pode ser negativa');
+  }
+  
+  return cutVolume * (1 + expansionRate);
+}
+
+/**
+ * Cálculo completo de transporte de terra com fatores corretos
+ * Calcula o volume solto necessário para transportar considerando:
+ * 1. Contração na compactação do aterro
+ * 2. Empolamento na escavação/carga
+ * 
+ * @param compactedFillVolume Volume de aterro compactado desejado (m³)
+ * @param soilType Tipo de solo para determinar empolamento
+ * @param contractionType Tipo de contração ('normal' ou 'alta')
+ * @returns Volume solto para transporte (m³)
+ */
+export function calculateTransportVolumeForCompactedFill(
+  compactedFillVolume: number,
+  soilType: string = 'misturado',
+  contractionType: string = 'normal'
+): number {
+  const contractionRate = SOIL_CONTRACTION_FACTORS[contractionType] || 0.10;
+  const expansionRate = SOIL_EXPANSION_FACTORS[soilType] || 0.25;
+  
+  // Passo 1: Calcular volume de corte necessário
+  const cutVolume = calculateCutVolumeFromCompactedFill(compactedFillVolume, contractionRate);
+  
+  // Passo 2: Calcular volume solto para transporte
+  const looseVolume = calculateLooseVolumeFromCut(cutVolume, expansionRate);
+  
+  return looseVolume;
+}
+
+/**
  * Cálculo de Bota-fora (Volume a remover)
  * Volume Escavado - Volume Ocupado (pelo tubo + cama de areia)
+ * ATUALIZADO: Considera fatores de empolamento corretos
  * 
- * @param excavationVol Volume de escavação em m³
+ * @param excavationVol Volume de escavação em m³ (volume de corte)
  * @param pipeOuterDiameter Diâmetro externo do tubo em metros
  * @param pipeLength Comprimento do tubo em metros
- * @returns Volume de bota-fora em m³
+ * @param soilType Tipo de solo para calcular empolamento ('argila', 'areia', 'rocha', 'misturado')
+ * @param applyExpansion Se true, aplica empolamento ao volume de escavação
+ * @returns Volume de bota-fora em m³ (volume solto se applyExpansion=true)
  */
 export function calculateSpoilVolume(
   excavationVol: number,
   pipeOuterDiameter: number,
-  pipeLength: number
+  pipeLength: number,
+  soilType: string = 'misturado',
+  applyExpansion: boolean = true
 ): number {
   const pipeVolume = Math.PI * Math.pow(pipeOuterDiameter / 2, 2) * pipeLength;
-  // Assumindo fator de empolamento (expansion factor) do solo removido, ex: 1.2 ou 1.3
-  const expansionFactor = 1.0; // Ajustar conforme o solo
   
-  // O volume de "bota-fora" é o que sobra da terra escavada que não volta pra vala
-  // Se for remover TUDO: excavationVol * expansionFactor
-  // Se for reaterrar: (excavationVol - pipeVolume) * expansionFactor
+  // Volume escavado menos volume ocupado pelo tubo
+  const netExcavationVol = excavationVol - pipeVolume;
   
-  return (excavationVol - pipeVolume) * expansionFactor;
+  if (!applyExpansion) {
+    return netExcavationVol;
+  }
+  
+  // Aplicar empolamento se necessário (volume solto)
+  const expansionRate = SOIL_EXPANSION_FACTORS[soilType] || 0.25;
+  return calculateLooseVolumeFromCut(netExcavationVol, expansionRate);
 }
 
 // ============================================================================

@@ -38,7 +38,11 @@ import {
   calculatePolygonArea,
   calculatePolygonPerimeter,
   validatePolygon,
-  calculateVolumeFromArea
+  calculateVolumeFromArea,
+  calculateLooseVolumeFromCut,
+  calculateCutVolumeFromCompactedFill,
+  SOIL_EXPANSION_FACTORS,
+  SOIL_CONTRACTION_FACTORS
 } from './measurement-calculations-viaplan';
 
 // Interface simples para projeto (armazenamento)
@@ -179,6 +183,24 @@ export class MeasurementService {
         const validLength = isFinite(length) && length >= 0 ? length : 0;
         const validVolume = isFinite(volume) && volume >= 0 ? volume : 0;
         
+        // Calcular volumes com empolamento/contração se configurado
+        let volumeLoose: number | undefined;
+        let volumeCompacted: number | undefined;
+        
+        if (data.soil_expansion_config || data.soil_type) {
+          const soilType = data.soil_type || 'misturado';
+          const expansionRate = data.soil_expansion_config?.expansion_rate 
+            || SOIL_EXPANSION_FACTORS[soilType] || 0.25;
+          const contractionRate = data.soil_expansion_config?.contraction_rate
+            || SOIL_CONTRACTION_FACTORS[data.soil_expansion_config?.contraction_type || 'normal'] || 0.10;
+          
+          // Volume solto (para transporte)
+          volumeLoose = calculateLooseVolumeFromCut(validVolume, expansionRate);
+          
+          // Volume compactado (que pode ser gerado a partir do corte)
+          volumeCompacted = validVolume * (1 - contractionRate);
+        }
+        
         return {
           id: '',
           type: 'trench',
@@ -188,8 +210,11 @@ export class MeasurementService {
           width: data.width || { type: 'constant', value: 0.6, unit: 'm' },
           depth: data.depth || { type: 'constant', value: 0.9, unit: 'm' },
           soil_type: data.soil_type,
+          soil_expansion_config: data.soil_expansion_config,
           length: validLength, // Sempre em metros
-          volume_m3: validVolume, // Sempre em metros cúbicos
+          volume_m3: validVolume, // Volume de corte (escavação) em metros cúbicos
+          volume_loose_m3: volumeLoose, // Volume solto para transporte
+          volume_compacted_m3: volumeCompacted, // Volume após compactação
           asphalt_removal: data.asphalt_removal,
           concrete_removal: data.concrete_removal,
           backfill: data.backfill,
