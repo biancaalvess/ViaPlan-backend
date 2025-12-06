@@ -76,6 +76,7 @@ export class MeasurementController {
           success: false,
           error: 'Medição não encontrada'
         });
+        return;
       }
       
       res.json({
@@ -356,9 +357,15 @@ export class MeasurementController {
    */
   calculateSlope = async (req: Request, res: Response): Promise<void> => {
     try {
-      const { point1, point2, scale, unit } = req.body;
+      const { point1, point2, scale, unit, zoom } = req.body;
       
-      const result = calculateSlopeUtil(point1, point2, scale || '1:1', unit || 'meters');
+      const result = calculateSlopeUtil(
+        point1, 
+        point2, 
+        scale || '1:1', 
+        unit || 'meters',
+        zoom
+      );
       
       res.json({
         success: true,

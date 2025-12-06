@@ -134,29 +134,50 @@ export const measurementSchemas = {
   })
 };
 
-// Schema para criar medição
-export const createMeasurementSchema = Joi.object({
-  projectId: Joi.string().uuid().required(),
-  pdfId: Joi.string().required(),
-  type: Joi.string().valid(
-    'distance', 'polyline', 'area', 'count', 
-    'profile', 'volume_by_depth', 'slope', 'offset'
-  ).required(),
-  data: Joi.alternatives().conditional('type', {
-    switch: [
-      { is: 'distance', then: measurementSchemas.distance },
-      { is: 'polyline', then: measurementSchemas.polyline },
-      { is: 'area', then: measurementSchemas.area },
-      { is: 'count', then: measurementSchemas.count },
-      { is: 'profile', then: measurementSchemas.profile },
-      { is: 'volume_by_depth', then: measurementSchemas.volume_by_depth },
-      { is: 'slope', then: measurementSchemas.slope },
-      { is: 'offset', then: measurementSchemas.offset }
-    ]
+// Schema para criar medição (tipos antigos + ViaPlan)
+export const createMeasurementSchema = Joi.alternatives().try(
+  // Schema antigo (legado)
+  Joi.object({
+    projectId: Joi.string().uuid().required(),
+    pdfId: Joi.string().required(),
+    type: Joi.string().valid(
+      'distance', 'polyline', 'area', 'count', 
+      'profile', 'volume_by_depth', 'slope', 'offset'
+    ).required(),
+    data: Joi.alternatives().conditional('type', {
+      switch: [
+        { is: 'distance', then: measurementSchemas.distance },
+        { is: 'polyline', then: measurementSchemas.polyline },
+        { is: 'area', then: measurementSchemas.area },
+        { is: 'count', then: measurementSchemas.count },
+        { is: 'profile', then: measurementSchemas.profile },
+        { is: 'volume_by_depth', then: measurementSchemas.volume_by_depth },
+        { is: 'slope', then: measurementSchemas.slope },
+        { is: 'offset', then: measurementSchemas.offset }
+      ]
+    }),
+    scale: scaleSchema,
+    label: Joi.string().max(255).required()
   }),
-  scale: scaleSchema,
-  label: Joi.string().max(255).required()
-});
+  // Schema ViaPlan (novo)
+  Joi.object({
+    project_id: Joi.string().required(),
+    type: Joi.string().valid(
+      'select',
+      'trench',
+      'bore-shot',
+      'hydro-excavation',
+      'conduit',
+      'vault',
+      'area',
+      'note'
+    ).required(),
+    data: Joi.object().required(),
+    scale: scaleSchema,
+    zoom: Joi.number().min(0.1).max(10).optional(),
+    label: Joi.string().max(255).optional()
+  })
+);
 
 // Schema para atualizar medição
 export const updateMeasurementSchema = Joi.object({
@@ -174,18 +195,21 @@ const calculationPointSchema = Joi.object({
   elevation: Joi.number().optional()
 });
 
-// Schema para cálculos
+
+// Adicionar zoom aos outros schemas de cálculo
 export const calculateDistanceSchema = Joi.object({
   point1: calculationPointSchema.required(),
   point2: calculationPointSchema.required(),
-  scale: scaleSchema.optional(), // Opcional para cálculos simples
-  unit: unitSchema.default('meters')
+  scale: scaleSchema.optional(),
+  unit: unitSchema.default('meters'),
+  zoom: Joi.number().min(0.1).max(10).optional()
 });
 
 export const calculateAreaSchema = Joi.object({
   points: Joi.array().min(3).items(calculationPointSchema).required(),
   scale: scaleSchema.optional(),
-  unit: areaUnitSchema.default('square_meters')
+  unit: areaUnitSchema.default('square_meters'),
+  zoom: Joi.number().min(0.1).max(10).optional()
 });
 
 export const calculateVolumeSchema = Joi.object({
@@ -202,6 +226,6 @@ export const calculateSlopeSchema = Joi.object({
     elevation: Joi.number().required() 
   }).or('elevation', 'z').required(),
   scale: scaleSchema.optional(),
-  unit: unitSchema.default('meters')
+  unit: unitSchema.default('meters'),
+  zoom: Joi.number().min(0.1).max(10).optional()
 });
-

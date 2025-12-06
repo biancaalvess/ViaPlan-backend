@@ -78,8 +78,19 @@ export class MeasurementService {
       const measurementId = uuidv4();
       const now = new Date().toISOString();
       
+      // Extrair escala e zoom do request (podem vir no request.data ou no request)
+      const scale = (request as any).scale || (request.data as any).scale;
+      const zoom = (request as any).zoom || (request.data as any).zoom;
+      
+      // Adicionar escala e zoom ao partialData para uso nas funções
+      const dataWithScale = {
+        ...request.data,
+        scale,
+        zoom
+      };
+      
       // Construir dados completos da medição
-      const fullData = await this.buildMeasurementData(request.type, request.data);
+      const fullData = await this.buildMeasurementData(request.type, dataWithScale);
       
       const measurement: Measurement = {
         id: measurementId,
@@ -115,6 +126,10 @@ export class MeasurementService {
   ): Promise<MeasurementData> {
     const now = new Date().toISOString();
     
+    // Extrair escala e zoom do partialData (se disponível)
+    const scale = (partialData as any).scale;
+    const zoom = (partialData as any).zoom;
+    
     switch (type) {
       case 'select': {
         const data = partialData as Partial<SelectMeasurement>;
@@ -143,7 +158,11 @@ export class MeasurementService {
           throw new Error('Trincheira deve ter pelo menos 2 pontos');
         }
         
-        const length = calculateTrenchLength(data.coordinates);
+        // Extrair escala e zoom (podem vir em data.scale ou no nível superior)
+        const measurementScale = scale || (data as any).scale;
+        const measurementZoom = zoom || (data as any).zoom;
+        
+        const length = calculateTrenchLength(data.coordinates, measurementScale, measurementZoom);
         const widthDefault: { type: 'constant' | 'variable'; value?: number; values?: number[] } = 
           data.width || { type: 'constant', value: 0.6 };
         const depthDefault: { type: 'constant' | 'variable'; value?: number; values?: number[] } = 
@@ -151,7 +170,9 @@ export class MeasurementService {
         const volume = calculateTrenchVolume(
           data.coordinates,
           widthDefault,
-          depthDefault
+          depthDefault,
+          measurementScale,
+          measurementZoom
         );
         
         // Validar valores para evitar NaN ou valores inválidos
@@ -184,7 +205,10 @@ export class MeasurementService {
           throw new Error('Perfuração direcional deve ter pelo menos 2 pontos');
         }
         
-        const length = calculateBoreShotLength(data.coordinates);
+        const measurementScale = scale || (data as any).scale;
+        const measurementZoom = zoom || (data as any).zoom;
+        
+        const length = calculateBoreShotLength(data.coordinates, measurementScale, measurementZoom);
         const minRadius = data.conduits?.[0]?.min_curvature_radius_m || 45.72; // 150 ft = 45.72 m
         const minDepth = data.min_depth_guaranteed_m || 2.44; // 8 ft = 2.44 m
         
@@ -219,12 +243,17 @@ export class MeasurementService {
           throw new Error('Hidroescavação deve ter pelo menos 1 ponto');
         }
         
+        const measurementScale = scale || (data as any).scale;
+        const measurementZoom = zoom || (data as any).zoom;
+        
         const volume = calculateHydroExcavationVolume(
           data.subtype || 'trench',
           data.coordinates,
           data.section || { shape: 'circular', diameter_m: 0.61 }, // 2 ft = 0.61 m
           data.depth_m || 0.91, // 3 ft = 0.91 m
-          data.efficiency_ratio
+          data.efficiency_ratio,
+          measurementScale,
+          measurementZoom
         );
         
         return {
@@ -252,7 +281,10 @@ export class MeasurementService {
           throw new Error('Conduto deve ter pelo menos 2 pontos');
         }
         
-        const length = calculateConduitLength(data.coordinates);
+        const measurementScale = scale || (data as any).scale;
+        const measurementZoom = zoom || (data as any).zoom;
+        
+        const length = calculateConduitLength(data.coordinates, measurementScale, measurementZoom);
         
         // Calcular volume interno e peso se houver condutos especificados
         let internalVolume: number | undefined;
@@ -347,8 +379,11 @@ export class MeasurementService {
           throw new Error(`Polígono inválido: ${validation.errors.join(', ')}`);
         }
         
-        const areaM2 = calculatePolygonArea(data.coordinates);
-        const perimeterM = calculatePolygonPerimeter(data.coordinates);
+        const measurementScale = scale || (data as any).scale;
+        const measurementZoom = zoom || (data as any).zoom;
+        
+        const areaM2 = calculatePolygonArea(data.coordinates, measurementScale, measurementZoom);
+        const perimeterM = calculatePolygonPerimeter(data.coordinates, measurementScale, measurementZoom);
         
         let volumeM3: number | undefined;
         

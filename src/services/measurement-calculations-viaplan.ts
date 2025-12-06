@@ -39,27 +39,74 @@ function distance3D(p1: Coordinate, p2: Coordinate): number {
 }
 
 /**
- * Calcular comprimento total de uma polilinha
+ * Converter coordenadas de pixels para metros usando escala
  */
-function calculatePolylineLength(coordinates: Coordinate[]): number {
+function convertPixelsToMeters(distancePixels: number, scale?: string, zoom?: number): number {
+  if (!scale) {
+    // Se não há escala, assumir que coordenadas já estão em metros
+    return distancePixels;
+  }
+  
+  // Parse escala do formato "1:100" para fator numérico
+  const match = scale.match(/^(\d+):(\d+)$/);
+  if (!match) {
+    throw new Error(`Formato de escala inválido: ${scale}. Use formato "1:100"`);
+  }
+  const [, numerator, denominator] = match;
+  const scaleFactor = parseFloat(denominator) / parseFloat(numerator);
+  
+  // Normalizar pelo zoom se fornecido
+  const normalizedDistance = zoom && zoom !== 1.0 ? distancePixels / zoom : distancePixels;
+  
+  // Converter pixels para metros
+  return normalizedDistance * scaleFactor;
+}
+
+/**
+ * Parse escala do formato "1:100" para fator numérico
+ */
+function parseScale(scale: string): number {
+  const match = scale.match(/^(\d+):(\d+)$/);
+  if (!match) {
+    throw new Error(`Formato de escala inválido: ${scale}. Use formato "1:100"`);
+  }
+  const [, numerator, denominator] = match;
+  return parseFloat(denominator) / parseFloat(numerator);
+}
+
+/**
+ * Calcular comprimento total de uma polilinha
+ * @param scale Escala no formato "1:100" (opcional - se não fornecido, assume coordenadas já em metros)
+ * @param zoom Zoom aplicado (opcional - se fornecido, compensa o zoom)
+ */
+function calculatePolylineLength(coordinates: Coordinate[], scale?: string, zoom?: number): number {
   if (coordinates.length < 2) return 0;
   
   let totalLength = 0;
   for (let i = 0; i < coordinates.length - 1; i++) {
-    totalLength += distance2D(coordinates[i], coordinates[i + 1]);
+    const pixelDistance = distance2D(coordinates[i], coordinates[i + 1]);
+    const realDistance = convertPixelsToMeters(pixelDistance, scale, zoom);
+    totalLength += realDistance;
   }
   return totalLength;
 }
 
 /**
  * Calcular comprimento total de uma polilinha 3D
+ * @param scale Escala no formato "1:100" (opcional - se não fornecido, assume coordenadas já em metros)
+ * @param zoom Zoom aplicado (opcional - se fornecido, compensa o zoom)
  */
-function calculatePolylineLength3D(coordinates: Coordinate[]): number {
+function calculatePolylineLength3D(coordinates: Coordinate[], scale?: string, zoom?: number): number {
   if (coordinates.length < 2) return 0;
   
   let totalLength = 0;
   for (let i = 0; i < coordinates.length - 1; i++) {
-    totalLength += distance3D(coordinates[i], coordinates[i + 1]);
+    const pixelDistance = distance3D(coordinates[i], coordinates[i + 1]);
+    // Para 3D, converter apenas componentes X e Y pelo zoom (Z já está em metros reais)
+    const pixelDistance2D = distance2D(coordinates[i], coordinates[i + 1]);
+    const realDistance2D = convertPixelsToMeters(pixelDistance2D, scale, zoom);
+    const dz = (coordinates[i + 1].z || 0) - (coordinates[i].z || 0);
+    totalLength += Math.sqrt(realDistance2D * realDistance2D + dz * dz);
   }
   return totalLength;
 }
@@ -70,9 +117,11 @@ function calculatePolylineLength3D(coordinates: Coordinate[]): number {
 
 /**
  * Calcular comprimento total da trincheira
+ * @param scale Escala no formato "1:100" (opcional - se não fornecido, assume coordenadas já em metros)
+ * @param zoom Zoom aplicado (opcional - se fornecido, compensa o zoom)
  */
-export function calculateTrenchLength(coordinates: Coordinate[]): number {
-  const length = calculatePolylineLength(coordinates);
+export function calculateTrenchLength(coordinates: Coordinate[], scale?: string, zoom?: number): number {
+  const length = calculatePolylineLength(coordinates, scale, zoom);
   return isFinite(length) && length >= 0 ? length : 0;
 }
 
@@ -80,15 +129,19 @@ export function calculateTrenchLength(coordinates: Coordinate[]): number {
  * Calcular volume de escavação da trincheira usando método padronizado
  * Calcula volume de trincheiras com profundidade variável por segmento
  * Volume de prisma trapezoidal (média das profundidades)
+ * @param scale Escala no formato "1:100" (opcional - se não fornecido, assume coordenadas já em metros)
+ * @param zoom Zoom aplicado (opcional - se fornecido, compensa o zoom)
  */
 export function calculateTrenchVolume(
   coordinates: Coordinate[],
   width: { type: 'constant' | 'variable'; value?: number; values?: number[] },
-  depth: { type: 'constant' | 'variable'; value?: number; values?: number[] }
+  depth: { type: 'constant' | 'variable'; value?: number; values?: number[] },
+  scale?: string,
+  zoom?: number
 ): number {
   // Se ambos são constantes, usar método simples
   if (width.type === 'constant' && depth.type === 'constant') {
-    const length = calculateTrenchLength(coordinates);
+    const length = calculateTrenchLength(coordinates, scale, zoom);
     const w = width.value || 0;
     const d = depth.value || 0;
     if (length === 0 || !isFinite(length) || !isFinite(w) || !isFinite(d) || w <= 0 || d <= 0) {
@@ -108,7 +161,8 @@ export function calculateTrenchVolume(
   }> = [];
   
   for (let i = 0; i < segmentCount; i++) {
-    const segmentLength = distance2D(coordinates[i], coordinates[i + 1]);
+    const segmentLengthPixels = distance2D(coordinates[i], coordinates[i + 1]);
+    const segmentLength = convertPixelsToMeters(segmentLengthPixels, scale, zoom);
     if (!isFinite(segmentLength) || segmentLength <= 0) continue;
     
     const segmentWidth = width.type === 'variable' 
@@ -392,9 +446,11 @@ export function validateBoreShotDepth(
 
 /**
  * Calcular comprimento perfurado
+ * @param scale Escala no formato "1:100" (opcional - se não fornecido, assume coordenadas já em metros)
+ * @param zoom Zoom aplicado (opcional - se fornecido, compensa o zoom)
  */
-export function calculateBoreShotLength(coordinates: Coordinate[]): number {
-  return calculatePolylineLength3D(coordinates);
+export function calculateBoreShotLength(coordinates: Coordinate[], scale?: string, zoom?: number): number {
+  return calculatePolylineLength3D(coordinates, scale, zoom);
 }
 
 // ============================================================================
@@ -403,18 +459,22 @@ export function calculateBoreShotLength(coordinates: Coordinate[]): number {
 
 /**
  * Calcular volume removido por hidroescavação
+ * @param scale Escala no formato "1:100" (opcional - se não fornecido, assume coordenadas já em metros)
+ * @param zoom Zoom aplicado (opcional - se fornecido, compensa o zoom)
  */
 export function calculateHydroExcavationVolume(
   subtype: 'trench' | 'hole' | 'potholing',
   coordinates: Coordinate[],
   section: { shape: 'circular' | 'rectangular'; diameter_m?: number; width_m?: number; length_m?: number },
   depth_m: number,
-  efficiency_ratio?: number
+  efficiency_ratio?: number,
+  scale?: string,
+  zoom?: number
 ): number {
   let volumeCubicMeters = 0;
   
   if (subtype === 'trench') {
-    const lengthM = calculatePolylineLength(coordinates);
+    const lengthM = calculatePolylineLength(coordinates, scale, zoom);
     
     if (section.shape === 'circular') {
       const radiusM = (section.diameter_m || 0) / 2;
@@ -459,9 +519,11 @@ export function calculateHydroExcavationVolume(
 
 /**
  * Calcular comprimento total do conduto
+ * @param scale Escala no formato "1:100" (opcional - se não fornecido, assume coordenadas já em metros)
+ * @param zoom Zoom aplicado (opcional - se fornecido, compensa o zoom)
  */
-export function calculateConduitLength(coordinates: Coordinate[]): number {
-  return calculatePolylineLength3D(coordinates);
+export function calculateConduitLength(coordinates: Coordinate[], scale?: string, zoom?: number): number {
+  return calculatePolylineLength3D(coordinates, scale, zoom);
 }
 
 /**
@@ -549,41 +611,57 @@ export function calculateVaultBackfill(
 
 /**
  * Calcular área usando fórmula do polígono (Shoelace)
+ * @param scale Escala no formato "1:100" (opcional - se não fornecido, assume coordenadas já em metros)
+ * @param zoom Zoom aplicado (opcional - se fornecido, compensa o zoom)
  */
-export function calculatePolygonArea(coordinates: Coordinate[]): number {
+export function calculatePolygonArea(coordinates: Coordinate[], scale?: string, zoom?: number): number {
   if (coordinates.length < 3) return 0;
   
   // Garantir que o polígono está fechado
-  const closed = coordinates.length > 0 && 
-    (coordinates[0].x !== coordinates[coordinates.length - 1].x ||
-     coordinates[0].y !== coordinates[coordinates.length - 1].y);
+  const isClosed = coordinates.length > 0 && 
+    (Math.abs(coordinates[0].x - coordinates[coordinates.length - 1].x) < EPSILON &&
+     Math.abs(coordinates[0].y - coordinates[coordinates.length - 1].y) < EPSILON);
   
-  const points = closed ? coordinates : [...coordinates, coordinates[0]];
+  const points = isClosed ? coordinates : [...coordinates, coordinates[0]];
   
-  let area = 0;
+  // Calcular área em pixels²
+  let areaPixels = 0;
   for (let i = 0; i < points.length - 1; i++) {
-    area += points[i].x * points[i + 1].y;
-    area -= points[i + 1].x * points[i].y;
+    areaPixels += points[i].x * points[i + 1].y;
+    areaPixels -= points[i + 1].x * points[i].y;
+  }
+  areaPixels = Math.abs(areaPixels) / 2;
+  
+  // Converter pixels² para metros²
+  if (!scale) {
+    return areaPixels; // Assumir que já está em metros²
   }
   
-  return Math.abs(area) / 2;
+  const scaleFactor = parseScale(scale);
+  const zoomFactor = zoom && zoom !== 1.0 ? 1 / (zoom * zoom) : 1; // Área é quadrática
+  const normalizedAreaPixels = areaPixels * zoomFactor;
+  return normalizedAreaPixels * (scaleFactor * scaleFactor);
 }
 
 /**
  * Calcular perímetro do polígono
+ * @param scale Escala no formato "1:100" (opcional - se não fornecido, assume coordenadas já em metros)
+ * @param zoom Zoom aplicado (opcional - se fornecido, compensa o zoom)
  */
-export function calculatePolygonPerimeter(coordinates: Coordinate[]): number {
+export function calculatePolygonPerimeter(coordinates: Coordinate[], scale?: string, zoom?: number): number {
   if (coordinates.length < 3) return 0;
   
   let perimeter = 0;
-  const closed = coordinates.length > 0 && 
-    (coordinates[0].x !== coordinates[coordinates.length - 1].x ||
-     coordinates[0].y !== coordinates[coordinates.length - 1].y);
+  const isClosed = coordinates.length > 0 && 
+    (Math.abs(coordinates[0].x - coordinates[coordinates.length - 1].x) < EPSILON &&
+     Math.abs(coordinates[0].y - coordinates[coordinates.length - 1].y) < EPSILON);
   
-  const points = closed ? coordinates : [...coordinates, coordinates[0]];
+  const points = isClosed ? coordinates : [...coordinates, coordinates[0]];
   
   for (let i = 0; i < points.length - 1; i++) {
-    perimeter += distance2D(points[i], points[i + 1]);
+    const pixelDistance = distance2D(points[i], points[i + 1]);
+    const realDistance = convertPixelsToMeters(pixelDistance, scale, zoom);
+    perimeter += realDistance;
   }
   
   return perimeter;
@@ -602,7 +680,7 @@ export function validatePolygon(coordinates: Coordinate[]): {
     errors.push('Polígono deve ter pelo menos 3 pontos');
   }
   
-  // Verificar se está fechado
+  // Verificar se está fechado (lógica corrigida)
   const isClosed = coordinates.length > 0 && 
     (Math.abs(coordinates[0].x - coordinates[coordinates.length - 1].x) < EPSILON &&
      Math.abs(coordinates[0].y - coordinates[coordinates.length - 1].y) < EPSILON);

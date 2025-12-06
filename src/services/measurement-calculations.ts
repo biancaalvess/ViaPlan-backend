@@ -250,15 +250,17 @@ export function calculateCount(
 
 /**
  * 5. PERFIL - Gerar perfil de elevações ao longo de uma linha
+ * @param zoom Zoom aplicado (opcional, para compensar coordenadas com zoom)
  */
 export function calculateProfile(
   line: [Coordinate | Point, Coordinate | Point],
   elevations: Array<{ distance: number; elevation: number }>,
   scale: string,
-  unit: Unit = 'meters'
+  unit: Unit = 'meters',
+  zoom?: number
 ): { elevations: Array<{ distance: number; elevation: number }>; totalLength: number } {
   // Calcular comprimento total da linha
-  const totalLength = calculateDistance(line[0], line[1], scale, unit);
+  const totalLength = calculateDistance(line[0], line[1], scale, unit, zoom);
   
   // Validar que as elevações estão ordenadas por distância
   const sortedElevations = [...elevations].sort((a, b) => a.distance - b.distance);
@@ -318,12 +320,14 @@ export function calculateVolumeByAxis(
 
 /**
  * 7. SLOPE / DECLIVIDADE
+ * @param zoom Zoom aplicado (opcional, para compensar coordenadas com zoom)
  */
 export function calculateSlope(
   point1: Coordinate | Point,
   point2: Coordinate | Point,
   scale: string,
-  unit: Unit = 'meters'
+  unit: Unit = 'meters',
+  zoom?: number
 ): {
   distance: number;
   elevationDifference: number;
@@ -339,7 +343,7 @@ export function calculateSlope(
   }
   
   // Distância horizontal
-  const distance = calculateDistance(point1, point2, scale, unit);
+  const distance = calculateDistance(point1, point2, scale, unit, zoom);
   
   if (Math.abs(distance) < EPSILON) {
     throw new Error('Pontos muito próximos para calcular declividade');
@@ -367,12 +371,14 @@ export function calculateSlope(
 
 /**
  * 8. OFFSET / PARALELO - Gerar linhas paralelas
+ * @param zoom Zoom aplicado (opcional, para compensar coordenadas com zoom)
  */
 export function calculateOffset(
   baseLine: (Coordinate | Point)[],
   offsetDistance: number,
   scale: string,
-  side: 'left' | 'right' | 'both' = 'both'
+  side: 'left' | 'right' | 'both' = 'both',
+  zoom?: number
 ): {
   left?: (Coordinate | Point)[];
   right?: (Coordinate | Point)[];
@@ -387,7 +393,9 @@ export function calculateOffset(
   
   // Converter offset para pixels do canvas
   const scaleFactor = parseScale(scale);
-  const canvasOffset = offsetDistance / scaleFactor;
+  // Normalizar offset pelo zoom se necessário
+  const normalizedOffset = zoom && zoom !== 1.0 ? offsetDistance / zoom : offsetDistance;
+  const canvasOffset = normalizedOffset / scaleFactor;
   
   const leftPoints: (Coordinate | Point)[] = [];
   const rightPoints: (Coordinate | Point)[] = [];
@@ -466,12 +474,14 @@ export function calculateOffset(
 
 /**
  * Calcular área entre linhas paralelas (se aplicável)
+ * @param zoom Zoom aplicado (opcional, para compensar coordenadas com zoom)
  */
 export function calculateOffsetArea(
   baseLine: (Coordinate | Point)[],
   offsetDistance: number,
   scale: string,
-  unit: AreaUnit = 'square_meters'
+  unit: AreaUnit = 'square_meters',
+  zoom?: number
 ): number {
   // Se a linha base é fechada (polígono), calcular área do polígono offset
   const isClosed = 
@@ -480,15 +490,15 @@ export function calculateOffsetArea(
   
   if (!isClosed) {
     // Para linhas abertas, área = comprimento × offset × 2 (ambos os lados)
-    const { totalDistance } = calculatePolylineDistance(baseLine, scale, 'meters');
+    const { totalDistance } = calculatePolylineDistance(baseLine, scale, 'meters', zoom);
     return convertUnit(totalDistance * offsetDistance * 2, 'square_meters', unit);
   }
   
   // Para polígonos fechados, calcular área do polígono offset
-  const offsetLines = calculateOffset(baseLine, offsetDistance, scale, 'both');
+  const offsetLines = calculateOffset(baseLine, offsetDistance, scale, 'both', zoom);
   
   if (offsetLines.left && offsetLines.left.length >= 3) {
-    const { area } = calculateArea(offsetLines.left, scale, unit);
+    const { area } = calculateArea(offsetLines.left, scale, unit, zoom);
     return area;
   }
   
