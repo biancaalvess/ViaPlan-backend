@@ -43,10 +43,22 @@ export function parseScale(scale: string): number {
 
 /**
  * Converter coordenadas do canvas para coordenadas reais usando escala
+ * IMPORTANTE: Se as coordenadas já estão em pixels do canvas (incluindo zoom),
+ * o zoom deve ser compensado. O frontend deve enviar coordenadas normalizadas
+ * (divididas pelo zoom) ou enviar zoom como parâmetro adicional.
+ * 
+ * @param distance Distância em pixels do canvas (já com zoom aplicado se o frontend não normalizar)
+ * @param scale Escala no formato "1:100"
+ * @param zoom Zoom aplicado (1.0 = sem zoom, 2.0 = 2x zoom). Se fornecido, compensa o zoom.
  */
-function canvasToReal(distance: number, scale: string): number {
+function canvasToReal(distance: number, scale: string, zoom?: number): number {
   const scaleFactor = parseScale(scale);
-  return distance * scaleFactor;
+  
+  // Se zoom for fornecido, normalizar a distância antes de aplicar a escala
+  // Isso garante que as medidas reais permaneçam corretas independente do zoom
+  const normalizedDistance = zoom && zoom !== 1.0 ? distance / zoom : distance;
+  
+  return normalizedDistance * scaleFactor;
 }
 
 /**
@@ -79,12 +91,22 @@ function convertUnit(value: number, fromUnit: Unit | AreaUnit | VolumeUnit, toUn
 
 /**
  * 1. DISTÂNCIA (Régua) - Distância euclidiana entre dois pontos
+ * 
+ * IMPORTANTE: Se as coordenadas incluem zoom, passe o parâmetro zoom para compensar.
+ * O backend compensará automaticamente, garantindo medidas corretas independente do zoom.
+ * 
+ * @param point1 Primeiro ponto
+ * @param point2 Segundo ponto
+ * @param scale Escala no formato "1:100"
+ * @param unit Unidade de retorno (padrão: 'meters')
+ * @param zoom Zoom aplicado (opcional, para compensar coordenadas com zoom)
  */
 export function calculateDistance(
   point1: Coordinate | Point,
   point2: Coordinate | Point,
   scale: string,
-  unit: Unit = 'meters'
+  unit: Unit = 'meters',
+  zoom?: number
 ): number {
   // Verificar se estão na mesma página (apenas se ambos tiverem page - para PDFs)
   // Para imagens (PNG, JPG), não há página, então não valida
@@ -104,22 +126,25 @@ export function calculateDistance(
   if (z1 !== 0 || z2 !== 0) {
     const dz = z2 - z1;
     const canvasDistance3D = Math.sqrt(dx * dx + dy * dy + dz * dz);
-    const realDistance = canvasToReal(canvasDistance3D, scale);
+    const realDistance = canvasToReal(canvasDistance3D, scale, zoom);
     return convertUnit(realDistance, 'meters', unit);
   }
   
   // Distância 2D
-  const realDistance = canvasToReal(canvasDistance, scale);
+  const realDistance = canvasToReal(canvasDistance, scale, zoom);
   return convertUnit(realDistance, 'meters', unit);
 }
 
 /**
  * 2. POLILINHA - Soma das distâncias dos segmentos
+ * 
+ * @param zoom Zoom aplicado (opcional, para compensar coordenadas com zoom)
  */
 export function calculatePolylineDistance(
   points: (Coordinate | Point)[],
   scale: string,
-  unit: Unit = 'meters'
+  unit: Unit = 'meters',
+  zoom?: number
 ): { totalDistance: number; segmentDistances: number[] } {
   if (points.length < 2) {
     throw new Error('Polilinha deve ter pelo menos 2 pontos');
@@ -129,7 +154,7 @@ export function calculatePolylineDistance(
   let totalDistance = 0;
   
   for (let i = 0; i < points.length - 1; i++) {
-    const segmentDist = calculateDistance(points[i], points[i + 1], scale, unit);
+    const segmentDist = calculateDistance(points[i], points[i + 1], scale, unit, zoom);
     segmentDistances.push(segmentDist);
     totalDistance += segmentDist;
   }
@@ -139,11 +164,14 @@ export function calculatePolylineDistance(
 
 /**
  * 3. ÁREA - Fórmula do Shoelace (Algoritmo do Laço)
+ * 
+ * @param zoom Zoom aplicado (opcional, para compensar coordenadas com zoom)
  */
 export function calculateArea(
   points: (Coordinate | Point)[],
   scale: string,
-  unit: AreaUnit = 'square_meters'
+  unit: AreaUnit = 'square_meters',
+  zoom?: number
 ): { area: number; perimeter: number } {
   if (points.length < 3) {
     throw new Error('Polígono deve ter pelo menos 3 pontos');
@@ -181,8 +209,11 @@ export function calculateArea(
   const canvasArea = Math.abs(sum1 - sum2) / 2;
   
   // Converter para área real usando escala² (porque é área)
+  // IMPORTANTE: Se há zoom, normalizar a área também
   const scaleFactor = parseScale(scale);
-  const realArea = canvasArea * (scaleFactor * scaleFactor);
+  const zoomFactor = zoom && zoom !== 1.0 ? 1 / (zoom * zoom) : 1; // Área é quadrática
+  const normalizedCanvasArea = canvasArea * zoomFactor;
+  const realArea = normalizedCanvasArea * (scaleFactor * scaleFactor);
   
   // Calcular perímetro
   let perimeter = 0;
@@ -190,7 +221,7 @@ export function calculateArea(
     const dx = points[i + 1].x - points[i].x;
     const dy = points[i + 1].y - points[i].y;
     const segmentLength = Math.sqrt(dx * dx + dy * dy);
-    const realLength = canvasToReal(segmentLength, scale);
+    const realLength = canvasToReal(segmentLength, scale, zoom);
     perimeter += realLength;
   }
   

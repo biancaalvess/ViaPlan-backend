@@ -259,16 +259,28 @@ export class MeasurementController {
   /**
    * Calcular distância
    * POST /api/v1/calculations/distance
+   * Body: { point1, point2, scale, unit?, zoom? }
+   * 
+   * IMPORTANTE: Se as coordenadas incluem zoom do canvas, passe o parâmetro 'zoom'.
+   * O backend compensará automaticamente para garantir medidas corretas.
    */
   calculateDistance = async (req: Request, res: Response): Promise<void> => {
     try {
-      const { point1, point2, scale, unit } = req.body;
+      const { point1, point2, scale, unit, zoom } = req.body;
       
-      const distance = calculateDistanceUtil(point1, point2, scale || '1:1', unit || 'meters');
+      // Se zoom for fornecido, usar para compensar as coordenadas
+      // Isso garante que medidas permaneçam corretas independente do zoom
+      const distance = calculateDistanceUtil(
+        point1, 
+        point2, 
+        scale || '1:1', 
+        unit || 'meters',
+        zoom // Passar zoom se fornecido
+      );
       
       res.json({
         success: true,
-        data: { distance, unit: unit || 'meters' }
+        data: { distance, unit: unit || 'meters', zoom: zoom || 1.0 }
       });
     } catch (error: any) {
       console.error('Erro ao calcular distância:', error);
@@ -283,16 +295,26 @@ export class MeasurementController {
   /**
    * Calcular área
    * POST /api/v1/calculations/area
+   * Body: { points, scale, unit?, zoom? }
+   * 
+   * IMPORTANTE: Se as coordenadas incluem zoom do canvas, passe o parâmetro 'zoom'.
+   * O backend compensará automaticamente para garantir medidas corretas.
    */
   calculateArea = async (req: Request, res: Response): Promise<void> => {
     try {
-      const { points, scale, unit } = req.body;
+      const { points, scale, unit, zoom } = req.body;
       
-      const result = calculateAreaUtil(points, scale || '1:1', unit || 'square_meters');
+      // Se zoom for fornecido, usar para compensar as coordenadas
+      const result = calculateAreaUtil(
+        points, 
+        scale || '1:1', 
+        unit || 'square_meters',
+        zoom // Passar zoom se fornecido
+      );
       
       res.json({
         success: true,
-        data: result
+        data: { ...result, zoom: zoom || 1.0 }
       });
     } catch (error: any) {
       console.error('Erro ao calcular área:', error);
