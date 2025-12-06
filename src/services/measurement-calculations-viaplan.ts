@@ -77,29 +77,35 @@ export function calculateTrenchLength(coordinates: Coordinate[]): number {
 }
 
 /**
- * Calcular volume de escavação da trincheira
+ * Calcular volume de escavação da trincheira usando método padronizado
+ * Calcula volume de trincheiras com profundidade variável por segmento
+ * Volume de prisma trapezoidal (média das profundidades)
  */
 export function calculateTrenchVolume(
   coordinates: Coordinate[],
   width: { type: 'constant' | 'variable'; value?: number; values?: number[] },
   depth: { type: 'constant' | 'variable'; value?: number; values?: number[] }
 ): number {
-  const length = calculateTrenchLength(coordinates);
-  
-  if (length === 0 || !isFinite(length)) return 0;
-  
-  // Se ambos são constantes
+  // Se ambos são constantes, usar método simples
   if (width.type === 'constant' && depth.type === 'constant') {
+    const length = calculateTrenchLength(coordinates);
     const w = width.value || 0;
     const d = depth.value || 0;
-    if (!isFinite(w) || !isFinite(d) || w <= 0 || d <= 0) return 0;
+    if (length === 0 || !isFinite(length) || !isFinite(w) || !isFinite(d) || w <= 0 || d <= 0) {
+      return 0;
+    }
     const volume = length * w * d;
     return isFinite(volume) ? volume : 0;
   }
   
-  // Se um ou ambos são variáveis, calcular por segmento
-  let totalVolume = 0;
+  // Se um ou ambos são variáveis, calcular por segmento usando método padronizado
   const segmentCount = coordinates.length - 1;
+  const segments: Array<{
+    length: number;
+    width: number;
+    startDepth: number;
+    endDepth: number;
+  }> = [];
   
   for (let i = 0; i < segmentCount; i++) {
     const segmentLength = distance2D(coordinates[i], coordinates[i + 1]);
@@ -108,19 +114,58 @@ export function calculateTrenchVolume(
     const segmentWidth = width.type === 'variable' 
       ? (width.values?.[i] || 0)
       : (width.value || 0);
-    const segmentDepth = depth.type === 'variable'
-      ? (depth.values?.[i] || 0)
+    
+    // Profundidades nos pontos inicial e final do segmento
+    const startDepth = depth.type === 'variable'
+      ? (depth.values?.[i] || depth.value || 0)
+      : (depth.value || 0);
+    const endDepth = depth.type === 'variable'
+      ? (depth.values?.[i + 1] || depth.value || 0)
       : (depth.value || 0);
     
-    if (!isFinite(segmentWidth) || !isFinite(segmentDepth) || segmentWidth <= 0 || segmentDepth <= 0) continue;
-    
-    const segmentVolume = segmentLength * segmentWidth * segmentDepth;
-    if (isFinite(segmentVolume)) {
-      totalVolume += segmentVolume;
+    if (!isFinite(segmentWidth) || !isFinite(startDepth) || !isFinite(endDepth) || 
+        segmentWidth <= 0 || startDepth <= 0 || endDepth <= 0) {
+      continue;
     }
+    
+    segments.push({
+      length: segmentLength,
+      width: segmentWidth,
+      startDepth,
+      endDepth
+    });
   }
   
-  return isFinite(totalVolume) ? totalVolume : 0;
+  // Usar função padronizada para cálculo de volume por segmentos
+  return calculateTrenchVolumeBySegments(segments);
+}
+
+/**
+ * Calcular volume de trincheira a partir de segmentos (padronizado)
+ * Movimento de Terra (Trincheiras)
+ * Volume de prisma trapezoidal (média das profundidades)
+ * 
+ * @param segments Array de segmentos com comprimento, largura e profundidades inicial/final
+ * @returns Volume total em m³
+ */
+export function calculateTrenchVolumeBySegments(
+  segments: Array<{
+    length: number;
+    width: number;
+    startDepth: number;
+    endDepth: number;
+  }>
+): number {
+  let totalVolume = 0;
+  
+  segments.forEach(seg => {
+    // Volume de prisma trapezoidal (média das profundidades)
+    const avgDepth = (seg.startDepth + seg.endDepth) / 2;
+    const volume = seg.length * seg.width * avgDepth;
+    totalVolume += volume;
+  });
+  
+  return totalVolume;
 }
 
 /**
@@ -160,46 +205,106 @@ export function calculateBackfill(
   return excavationVolume - totalRemoval;
 }
 
+/**
+ * Cálculo de Bota-fora (Volume a remover)
+ * Volume Escavado - Volume Ocupado (pelo tubo + cama de areia)
+ * 
+ * @param excavationVol Volume de escavação em m³
+ * @param pipeOuterDiameter Diâmetro externo do tubo em metros
+ * @param pipeLength Comprimento do tubo em metros
+ * @returns Volume de bota-fora em m³
+ */
+export function calculateSpoilVolume(
+  excavationVol: number,
+  pipeOuterDiameter: number,
+  pipeLength: number
+): number {
+  const pipeVolume = Math.PI * Math.pow(pipeOuterDiameter / 2, 2) * pipeLength;
+  // Assumindo fator de empolamento (expansion factor) do solo removido, ex: 1.2 ou 1.3
+  const expansionFactor = 1.0; // Ajustar conforme o solo
+  
+  // O volume de "bota-fora" é o que sobra da terra escavada que não volta pra vala
+  // Se for remover TUDO: excavationVol * expansionFactor
+  // Se for reaterrar: (excavationVol - pipeVolume) * expansionFactor
+  
+  return (excavationVol - pipeVolume) * expansionFactor;
+}
+
 // ============================================================================
 // 3. PERFURAÇÃO DIRECIONAL (HDD)
 // ============================================================================
 
 /**
- * Calcular raio de curvatura entre três pontos
+ * Calcular raio de curvatura entre três pontos (padronizado)
+ * Calcula o raio de curvatura aproximado entre 3 pontos consecutivos (A, B, C)
+ * Usando a mudança angular entre os vetores AB e BC.
+ * 
+ * Fórmula padronizada: R = Arco / Ângulo
+ * onde Arco é aproximado pela média das cordas
  */
 function calculateCurvatureRadius(
   p1: Coordinate,
   p2: Coordinate,
   p3: Coordinate
 ): number {
-  // Vetores
-  const v1 = { x: p2.x - p1.x, y: p2.y - p1.y, z: (p2.z || 0) - (p1.z || 0) };
-  const v2 = { x: p3.x - p2.x, y: p3.y - p2.y, z: (p3.z || 0) - (p2.z || 0) };
+  return calculateHDDBendRadius(p1, p2, p3);
+}
+
+/**
+ * Calcula o raio de curvatura aproximado entre 3 pontos consecutivos (A, B, C)
+ * para perfuração direcional (HDD) - Validação de Raio
+ * Usando a mudança angular entre os vetores AB e BC.
+ * 
+ * @param p1 Primeiro ponto (A)
+ * @param p2 Segundo ponto (B) - ponto central
+ * @param p3 Terceiro ponto (C)
+ * @returns Raio de curvatura em metros (ou Infinity se reto)
+ */
+export function calculateHDDBendRadius(
+  p1: Coordinate,
+  p2: Coordinate,
+  p3: Coordinate
+): number {
+  // Vetor U = p2 - p1
+  const u = { 
+    x: p2.x - p1.x, 
+    y: p2.y - p1.y, 
+    z: (p2.z || 0) - (p1.z || 0) 
+  };
+  // Vetor V = p3 - p2
+  const v = { 
+    x: p3.x - p2.x, 
+    y: p3.y - p2.y, 
+    z: (p3.z || 0) - (p2.z || 0) 
+  };
   
-  // Comprimentos
-  const len1 = Math.sqrt(v1.x * v1.x + v1.y * v1.y + v1.z * v1.z);
-  const len2 = Math.sqrt(v2.x * v2.x + v2.y * v2.y + v2.z * v2.z);
+  const magU = Math.sqrt(u.x**2 + u.y**2 + u.z**2);
+  const magV = Math.sqrt(v.x**2 + v.y**2 + v.z**2);
   
-  if (len1 < EPSILON || len2 < EPSILON) {
-    return Infinity; // Segmentos muito curtos ou colineares
+  // Se os segmentos são muito curtos, considerar raio infinito
+  if (magU < EPSILON || magV < EPSILON) {
+    return Infinity;
   }
   
   // Produto escalar
-  const dot = v1.x * v2.x + v1.y * v2.y + v1.z * v2.z;
-  const cosAngle = dot / (len1 * len2);
+  const dot = u.x * v.x + u.y * v.y + u.z * v.z;
   
-  // Limitar cosAngle para evitar erros numéricos
-  const clampedCos = Math.max(-1, Math.min(1, cosAngle));
-  const angle = Math.acos(clampedCos);
+  // Ângulo de deflexão (em radianos)
+  // cos(theta) = (u . v) / (|u| |v|)
+  // Cuidado com precisão float podendo dar > 1 ou < -1
+  let cosTheta = dot / (magU * magV);
+  cosTheta = Math.min(1, Math.max(-1, cosTheta)); // Clamp
   
-  // Raio = comprimento do segmento / (2 * sin(ângulo/2))
-  const sinHalfAngle = Math.sin(angle / 2);
-  if (sinHalfAngle < EPSILON) {
-    return Infinity; // Praticamente reto
-  }
+  const deflectionAngleRad = Math.acos(cosTheta);
   
-  const radius = (len1 + len2) / (2 * sinHalfAngle);
-  return radius;
+  // Se o ângulo é 0, raio é infinito
+  if (deflectionAngleRad < 1e-6) return Infinity;
+  
+  // Comprimento do arco (aproximado pela média das cordas ou soma)
+  const avgSegmentLength = (magU + magV) / 2;
+  
+  // R = Arco / Ângulo
+  return avgSegmentLength / deflectionAngleRad;
 }
 
 /**

@@ -34,11 +34,13 @@ function canvasToReal(distance: number, scale: string): number {
 // ============================================================================
 // CÁLCULOS ESTRUTURAIS AVANÇADOS
 // Baseado em: Cálculo Aplicado às Engenharias - Robson Rodrigues
+// Fórmulas padronizadas para Mecânica dos Sólidos e Resistência dos Materiais
 // ============================================================================
 
 /**
  * Calcular momento de inércia para seção retangular
  * I = (b × h³) / 12
+ * Eixo centróide para retângulo
  */
 export function calculateMomentOfInertiaRectangular(
   width_m: number,
@@ -48,13 +50,73 @@ export function calculateMomentOfInertiaRectangular(
 }
 
 /**
+ * Alias para compatibilidade com nomenclatura alternativa
+ */
+export const calculateRectangleInertia = calculateMomentOfInertiaRectangular;
+
+/**
  * Calcular momento de inércia para seção circular
  * I = (π × d⁴) / 64
+ * Eixo centróide para círculo
  */
 export function calculateMomentOfInertiaCircular(
   diameter_m: number
 ): number {
   return (Math.PI * Math.pow(diameter_m, 4)) / 64;
+}
+
+/**
+ * Alias para compatibilidade com nomenclatura alternativa
+ */
+export const calculateCircleInertia = calculateMomentOfInertiaCircular;
+
+/**
+ * Interface para resultado da análise de viga simplesmente apoiada
+ */
+export interface BeamResult {
+  maxDeflection: number; // Barriga (v_max) em metros
+  maxMoment: number;     // Momento Fletor Máximo em N.m
+  maxShear: number;      // Força Cortante Máxima em N
+  angularDisp: number;   // Rotação nos apoios em radianos
+}
+
+/**
+ * Análise completa de viga simplesmente apoiada com carga pontual no centro
+ * Retorna todos os parâmetros estruturais calculados
+ * 
+ * @param P Carga pontual (Newton)
+ * @param L Comprimento do vão (Metros)
+ * @param E Módulo de Young/Elasticidade (Pa - Pascal)
+ * @param I Momento de Inércia (m^4)
+ */
+export function analyzeSimplySupportedBeam(
+  P: number,
+  L: number,
+  E: number,
+  I: number
+): BeamResult {
+  if (L <= 0 || E <= 0 || I <= 0) {
+    return {
+      maxDeflection: 0,
+      maxMoment: 0,
+      maxShear: 0,
+      angularDisp: 0
+    };
+  }
+
+  return {
+    // Deflexão Máxima: (P * L^3) / (48 * E * I)
+    maxDeflection: (P * Math.pow(L, 3)) / (48 * E * I),
+    
+    // Momento Fletor Máximo (no centro): (P * L) / 4
+    maxMoment: (P * L) / 4,
+    
+    // Força Cortante Máxima: P / 2
+    maxShear: P / 2,
+    
+    // Deslocamento Angular (nos apoios): (P * L^2) / (16 * E * I)
+    angularDisp: (P * Math.pow(L, 2)) / (16 * E * I)
+  };
 }
 
 /**
@@ -142,6 +204,30 @@ export function optimizeBeamDimensionsForMaxResistance(
     width_m: round(width_m),
     height_m: round(height_m),
     maxResistance: round(maxResistance)
+  };
+}
+
+/**
+ * Otimização estrutural para viga de tronco circular
+ * Encontra dimensões ideais (largura b, altura h) para extrair
+ * uma viga retangular de um tronco circular de diâmetro D
+ * visando RESISTÊNCIA MÁXIMA (Módulo de Resistência S).
+ * 
+ * Lógica da derivada: Maximize S = (b * h^2) / 6 s.t. b^2 + h^2 = D^2
+ * Resultado teórico: b = D / sqrt(3), h = D * sqrt(2/3)
+ * 
+ * @param diameter Diâmetro do tronco em metros
+ */
+export function optimizeBeamFromLog(
+  diameter: number
+): { width: number; height: number; sectionModulus: number } {
+  const b = diameter / Math.sqrt(3);
+  const h = diameter * Math.sqrt(2 / 3); // h = b * sqrt(2)
+  
+  return {
+    width: round(b),
+    height: round(h),
+    sectionModulus: round((b * Math.pow(h, 2)) / 6)
   };
 }
 
@@ -280,12 +366,79 @@ export const BRAZILIAN_PRESETS: BrazilianPresets = {
 // ============================================================================
 
 /**
+ * Interface Point para operações geométricas
+ */
+export interface Point {
+  x: number;
+  y: number;
+}
+
+/**
  * Calcular distância euclidiana entre dois pontos 2D
  */
 function distance2D(p1: Coordinate, p2: Coordinate): number {
   const dx = p2.x - p1.x;
   const dy = p2.y - p1.y;
   return Math.sqrt(dx * dx + dy * dy);
+}
+
+// ============================================================================
+// GEOMETRIA VETORIAL E POLÍGONOS
+// ============================================================================
+
+/**
+ * Calcular área de polígono usando algoritmo Shoelace
+ * @param points Array de pontos do polígono (fechado ou não)
+ * @returns Área do polígono (positiva)
+ */
+export function calculatePolygonAreaShoelace(points: Point[]): number {
+  let area = 0;
+  const n = points.length;
+  
+  if (n < 3) return 0;
+  
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n; // Próximo vértice (volta ao 0 no final)
+    area += points[i].x * points[j].y;
+    area -= points[j].x * points[i].y;
+  }
+  
+  return Math.abs(area) / 2.0;
+}
+
+/**
+ * Normalizar vetor (retornar vetor unitário)
+ * @param v Vetor a ser normalizado
+ * @returns Vetor normalizado (magnitude = 1)
+ */
+export function normalizeVector(v: Point): Point {
+  const magnitude = Math.sqrt(v.x * v.x + v.y * v.y);
+  if (magnitude === 0) return { x: 0, y: 0 };
+  return { x: v.x / magnitude, y: v.y / magnitude };
+}
+
+/**
+ * Produto Escalar (Dot Product) entre dois vetores
+ * Útil para calcular ângulos: A . B = |A| |B| cos(theta)
+ * @param v1 Primeiro vetor
+ * @param v2 Segundo vetor
+ * @returns Produto escalar
+ */
+export function dotProduct(v1: Point, v2: Point): number {
+  return v1.x * v2.x + v1.y * v2.y;
+}
+
+/**
+ * Conversão de Escala (Pixel para Metro)
+ * @param pixels Distância em pixels
+ * @param scaleFactor Fator de escala (metros por pixel)
+ * @returns Distância em metros
+ * 
+ * Exemplo: scaleFactor = 0.05 (significa que 1 pixel = 0.05 metros)
+ * Geralmente scaleFactor é calculado como (distanciaRealConhecida / distanciaPixelsMedida)
+ */
+export function pixelsToMeters(pixels: number, scaleFactor: number): number {
+  return pixels * scaleFactor;
 }
 
 /**
@@ -372,6 +525,75 @@ function calculatePolygonPerimeter(coordinates: Coordinate[], scale?: string): n
   }
   
   return perimeter;
+}
+
+// ============================================================================
+// ESTIMATIVAS E QUANTITATIVOS (TAKEOFF)
+// ============================================================================
+
+/**
+ * Cálculo de blocos de alvenaria
+ * @param wallArea Área total da parede em m²
+ * @param openingsArea Área de vãos (portas, janelas) em m²
+ * @param blockLength Comprimento do bloco em metros
+ * @param blockHeight Altura do bloco em metros
+ * @param jointThickness Espessura da argamassa (junta) em metros
+ * @returns Quantidade de blocos necessários (arredondado para cima)
+ */
+export function calculateMasonryBlocks(
+  wallArea: number,
+  openingsArea: number,
+  blockLength: number,
+  blockHeight: number,
+  jointThickness: number
+): number {
+  const netArea = wallArea - openingsArea;
+  
+  // Dimensão efetiva do bloco com junta
+  const effectiveLength = blockLength + jointThickness;
+  const effectiveHeight = blockHeight + jointThickness;
+  
+  const blockArea = effectiveLength * effectiveHeight;
+  
+  // Retorna quantidade arredondada para cima
+  return Math.ceil(netArea / blockArea);
+}
+
+/**
+ * Cálculo de área real de cobertura considerando inclinação
+ * Correção de inclinação: área real = área projetada × fator de correção
+ * @param projectedArea Área projetada (horizontal) em m²
+ * @param slopePercentage Inclinação em porcentagem (altura/100)
+ * @returns Área real da cobertura em m²
+ * 
+ * Fórmula: sec(theta) = sqrt(1 + tan²(theta)) onde tan(theta) = slopePercentage / 100
+ */
+export function calculateRoofRealArea(
+  projectedArea: number,
+  slopePercentage: number
+): number {
+  // Converter porcentagem para ângulo: tan(theta) = % / 100
+  // Fator de multiplicação = 1 / cos(theta) = sec(theta)
+  // Identidade: sec^2(x) = 1 + tan^2(x) => sec(x) = sqrt(1 + (pct/100)^2)
+  
+  const tanTheta = slopePercentage / 100;
+  const correctionFactor = Math.sqrt(1 + tanTheta * tanTheta);
+  
+  return projectedArea * correctionFactor;
+}
+
+/**
+ * Cálculo de peso de armadura (aço) para concreto
+ * @param volumeConcrete Volume de concreto em m³
+ * @param densityRate Taxa de armadura em kg/m³ (geralmente 80 a 120 kg/m³)
+ * @returns Peso estimado de aço em kg
+ */
+export function calculateRebarWeight(
+  volumeConcrete: number,
+  densityRate: number
+): number {
+  // densityRate geralmente em kg/m³ (ex: 80 a 120 kg/m³)
+  return volumeConcrete * densityRate;
 }
 
 // ============================================================================
@@ -481,15 +703,16 @@ export function calculateWallMeasurements(
   // 2.4 Volume de alvenaria
   const volume = netArea * thickness_m;
   
-  // 2.5 Blocagem estimada
+  // 2.5 Blocagem estimada (usando função padronizada)
   let estimatedBlocks: number | undefined;
   if (blockParams) {
-    // Módulo efetivo do bloco (dimensão + junta)
-    const L_eff = (blockParams.length_mm / 1000) + (blockParams.mortar_joint_horizontal_mm / 1000);
-    const A_eff = (blockParams.height_mm / 1000) + (blockParams.mortar_joint_vertical_mm / 1000);
-    
-    // N_blocos = A_liquida / (L_eff × A_eff)
-    estimatedBlocks = Math.ceil(netArea / (L_eff * A_eff));
+    estimatedBlocks = calculateMasonryBlocks(
+      masonryArea,
+      totalOpeningsArea,
+      blockParams.length_mm / 1000, // Converter mm para m
+      blockParams.height_mm / 1000, // Converter mm para m
+      blockParams.mortar_joint_horizontal_mm / 1000 // Usar junta horizontal como referência
+    );
   }
   
   // 2.6 Argamassa de assentamento (simplificado)
@@ -702,10 +925,10 @@ export function calculateStructureVolume(
     }
   }
   
-  // Estimativa de armadura: kg_aco = V × taxa_kg/m3
+  // Estimativa de armadura (usando função padronizada)
   // Taxas comuns: 80-120 kg/m³ (padrão: 100 kg/m³)
   const defaultRebarRate = rebar_rate_kg_m3 || 100; // kg/m³
-  const estimatedRebar = volume * defaultRebarRate;
+  const estimatedRebar = calculateRebarWeight(volume, defaultRebarRate);
   
   const result: {
     volume_m3: number;
@@ -797,24 +1020,19 @@ export function calculateRoofMeasurements(
     const area = calculatePolygonArea(plane.polygon, scale);
     projectedArea += area;
     
-    // 9.2 Área real
+    // 9.2 Área real (usando função padronizada)
     let realPlaneArea = area;
     
     if (plane.inclination_percent !== undefined) {
-      // Se inclinação dada como porcentagem (altura/100)
-      // Fator = sqrt(1 + i²)
-      const i = plane.inclination_percent / 100;
-      const factor = Math.sqrt(1 + i * i);
-      realPlaneArea = area * factor;
+      // Usar função padronizada para cálculo de área real com inclinação percentual
+      realPlaneArea = calculateRoofRealArea(area, plane.inclination_percent);
     } else if (plane.inclination_degrees !== undefined) {
-      // Se inclinação em graus: A_real = A_proj / cos(θ)
+      // Se inclinação em graus: converter para porcentagem e usar função padronizada
+      // tan(theta) = inclinação_porcentagem / 100
+      // inclinação_porcentagem = 100 * tan(theta)
       const inclinationRad = (plane.inclination_degrees * Math.PI) / 180;
-      const cosInclination = Math.cos(inclinationRad);
-      if (cosInclination > EPSILON) {
-        realPlaneArea = area / cosInclination;
-      } else {
-        realPlaneArea = area; // Evitar divisão por zero
-      }
+      const slopePercentage = 100 * Math.tan(inclinationRad);
+      realPlaneArea = calculateRoofRealArea(area, slopePercentage);
     }
     
     realArea += realPlaneArea;
