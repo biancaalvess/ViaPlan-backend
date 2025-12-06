@@ -296,10 +296,24 @@ export class MeasurementService {
           throw new Error('Câmara deve ter pelo menos 1 ponto');
         }
         
-        calculateVaultExcavationVolume(
+        const dimensions = data.dimensions || { length_m: 1.22, width_m: 1.22, depth_m: 1.83 }; // 4 ft = 1.22 m, 6 ft = 1.83 m
+        const excavationVolume = calculateVaultExcavationVolume(
           data.shape || 'rectangular',
-          data.dimensions || { length_m: 1.22, width_m: 1.22, depth_m: 1.83 } // 4 ft = 1.22 m, 6 ft = 1.83 m
+          dimensions
         );
+        
+        // Calcular volumes se não fornecidos
+        let volumes = data.volumes;
+        if (!volumes) {
+          // Volume de estrutura (aproximado como 10% do volume de escavação para concreto)
+          const structureVolume = excavationVolume * 0.1;
+          
+          volumes = {
+            excavation_m3: excavationVolume,
+            backfill_m3: excavationVolume - structureVolume,
+            backfill_type: data.volumes?.backfill_type || 'solo_nativo'
+          };
+        }
         
         return {
           id: '',
@@ -309,11 +323,11 @@ export class MeasurementService {
           coordinates: data.coordinates,
           vault_type: data.vault_type || 'câmara',
           shape: data.shape || 'rectangular',
-          dimensions: data.dimensions || { length_m: 1.22, width_m: 1.22, depth_m: 1.83 },
+          dimensions: dimensions,
           material: data.material,
           class: data.class,
           quantity: data.quantity || 1,
-          volumes: data.volumes,
+          volumes: volumes,
           hole_size: data.hole_size,
           traffic_rated: data.traffic_rated,
           created_at: now,
