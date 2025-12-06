@@ -30,6 +30,20 @@ export class MeasurementController {
     try {
       const request: CreateMeasurementRequest = req.body;
       
+      // Log para debug - verificar se coordenadas têm page ou não
+      if (request.data && (request.data as any).coordinates) {
+        const coords = (request.data as any).coordinates;
+        if (coords.length > 0) {
+          const firstPoint = coords[0];
+          console.log('📐 Criando medição:', {
+            type: request.type,
+            coordinatesCount: coords.length,
+            firstPointHasPage: 'page' in firstPoint && firstPoint.page !== undefined,
+            firstPoint: { x: firstPoint.x, y: firstPoint.y, page: firstPoint.page }
+          });
+        }
+      }
+      
       const measurement = await this.measurementService.createMeasurement(request);
       
       res.status(201).json({

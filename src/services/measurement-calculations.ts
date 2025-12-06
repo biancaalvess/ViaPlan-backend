@@ -86,9 +86,10 @@ export function calculateDistance(
   scale: string,
   unit: Unit = 'meters'
 ): number {
-  // Verificar se estão na mesma página (se Point)
+  // Verificar se estão na mesma página (apenas se ambos tiverem page - para PDFs)
+  // Para imagens (PNG, JPG), não há página, então não valida
   if ('page' in point1 && 'page' in point2 && point1.page !== point2.page) {
-    throw new Error('Pontos devem estar na mesma página do PDF');
+    throw new Error('Pontos devem estar na mesma página');
   }
   
   // Calcular distância no canvas (pixels)
@@ -157,9 +158,10 @@ export function calculateArea(
     throw new Error('Polígono deve estar fechado (último ponto deve ser igual ao primeiro)');
   }
   
-  // Verificar se todos os pontos estão na mesma página (se Point)
+  // Verificar se todos os pontos estão na mesma página (apenas se tiverem page - para PDFs)
+  // Para imagens (PNG, JPG), não há página, então não valida
   const firstPoint = points[0] as any;
-  if ('page' in firstPoint) {
+  if ('page' in firstPoint && firstPoint.page !== undefined) {
     const page = firstPoint.page;
     if (!points.every((p: any) => 'page' in p && p.page === page)) {
       throw new Error('Todos os pontos do polígono devem estar na mesma página');
