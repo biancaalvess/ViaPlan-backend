@@ -4,16 +4,17 @@
 
 import Joi from 'joi';
 
-// Schema para Point
+// Schema para Point (flexível: aceita com ou sem page para suportar PDF e PNG/canvas)
 const pointSchema = Joi.object({
   x: Joi.number().required(),
   y: Joi.number().required(),
-  page: Joi.number().integer().min(1).required(),
+  page: Joi.number().integer().min(1).optional(), // Opcional para PNG/canvas
+  z: Joi.number().optional(), // Alternativa para elevation em coordenadas 3D
   elevation: Joi.number().optional()
 });
 
-// Schema para escala (formato "1:100")
-const scaleSchema = Joi.string().pattern(/^\d+:\d+$/).required()
+// Schema para escala (formato "1:100") - pode ser opcional para cálculos
+const scaleSchema = Joi.string().pattern(/^\d+:\d+$/)
   .messages({
     'string.pattern.base': 'Escala deve estar no formato "1:100"'
   });
@@ -164,17 +165,26 @@ export const updateMeasurementSchema = Joi.object({
   scale: scaleSchema.optional()
 });
 
+// Schema para cálculos (mais flexível - não requer page obrigatoriamente)
+const calculationPointSchema = Joi.object({
+  x: Joi.number().required(),
+  y: Joi.number().required(),
+  page: Joi.number().integer().min(1).optional(),
+  z: Joi.number().optional(),
+  elevation: Joi.number().optional()
+});
+
 // Schema para cálculos
 export const calculateDistanceSchema = Joi.object({
-  point1: pointSchema.required(),
-  point2: pointSchema.required(),
-  scale: scaleSchema,
+  point1: calculationPointSchema.required(),
+  point2: calculationPointSchema.required(),
+  scale: scaleSchema.optional(), // Opcional para cálculos simples
   unit: unitSchema.default('meters')
 });
 
 export const calculateAreaSchema = Joi.object({
-  points: Joi.array().min(3).items(pointSchema).required(),
-  scale: scaleSchema,
+  points: Joi.array().min(3).items(calculationPointSchema).required(),
+  scale: scaleSchema.optional(),
   unit: areaUnitSchema.default('square_meters')
 });
 
@@ -185,9 +195,13 @@ export const calculateVolumeSchema = Joi.object({
 });
 
 export const calculateSlopeSchema = Joi.object({
-  point1: pointSchema.keys({ elevation: Joi.number().required() }).required(),
-  point2: pointSchema.keys({ elevation: Joi.number().required() }).required(),
-  scale: scaleSchema,
+  point1: calculationPointSchema.keys({ 
+    elevation: Joi.number().required() 
+  }).or('elevation', 'z').required(),
+  point2: calculationPointSchema.keys({ 
+    elevation: Joi.number().required() 
+  }).or('elevation', 'z').required(),
+  scale: scaleSchema.optional(),
   unit: unitSchema.default('meters')
 });
 

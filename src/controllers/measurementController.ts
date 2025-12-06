@@ -9,10 +9,10 @@ import {
   UpdateMeasurementRequest
 } from '../types/measurement';
 import {
-  calculateDistance,
-  calculateArea,
-  calculateVolumeByDepth,
-  calculateSlope
+  calculateDistance as calculateDistanceUtil,
+  calculateArea as calculateAreaUtil,
+  calculateVolumeByDepth as calculateVolumeByDepthUtil,
+  calculateSlope as calculateSlopeUtil
 } from '../services/measurement-calculations';
 
 export class MeasurementController {
@@ -216,7 +216,7 @@ export class MeasurementController {
     try {
       const { point1, point2, scale, unit } = req.body;
       
-      const distance = calculateDistance(point1, point2, scale || '1:1', unit || 'meters');
+      const distance = calculateDistanceUtil(point1, point2, scale || '1:1', unit || 'meters');
       
       res.json({
         success: true,
@@ -240,7 +240,7 @@ export class MeasurementController {
     try {
       const { points, scale, unit } = req.body;
       
-      const result = calculateArea(points, scale || '1:1', unit || 'square_meters');
+      const result = calculateAreaUtil(points, scale || '1:1', unit || 'square_meters');
       
       res.json({
         success: true,
@@ -264,7 +264,7 @@ export class MeasurementController {
     try {
       const { area, depth, unit } = req.body;
       
-      const volume = calculateVolumeByDepth(area, depth, unit || 'cubic_meters');
+      const volume = calculateVolumeByDepthUtil(area, depth, unit || 'cubic_meters');
       
       res.json({
         success: true,
@@ -288,7 +288,7 @@ export class MeasurementController {
     try {
       const { point1, point2, scale, unit } = req.body;
       
-      const result = calculateSlope(point1, point2, scale || '1:1', unit || 'meters');
+      const result = calculateSlopeUtil(point1, point2, scale || '1:1', unit || 'meters');
       
       res.json({
         success: true,
